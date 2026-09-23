@@ -1,9 +1,10 @@
 import pyautogui as pag
 import time
+from humanize import move_to
 
 def bait(settings):
-  pag.moveTo(settings.bait_location, duration = 1)
+  move_to(settings, settings.bait_location)
   pag.rightClick()
-  pag.moveTo(settings.pole_location, duration = 1)
+  move_to(settings, settings.pole_location)
   pag.click()
   time.sleep(8)

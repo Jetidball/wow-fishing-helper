@@ -1,4 +1,7 @@
-from mss import mss
+try:
+  from mss import MSS as mss
+except ImportError:
+  from mss import mss
 import numpy as np
 import cv2 as cv
 import math, time

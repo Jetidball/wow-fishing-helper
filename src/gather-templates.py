@@ -1,45 +1,26 @@
-import pyautogui as pag
-import time, sys, os
-import cv2 as cv
-import numpy as np
 from loguru import logger
-from mss import mss
 from pynput.keyboard import Key, Listener
+from settings import Settings, resolve_path
+from template_capture import capture_at_cursor
 
+# Hover over the bobber and press F8 to save a template. Press Esc to stop.
+# The same thing is available from the Bobber Images tab of the GUI.
 
-width = 50
-height = 50
-directory = '../images'
-count = 0
-
-
-def capture(img):
-  global count
-  import os
-  if not os.path.exists(directory):
-    os.makedirs(directory)
-  cv.imwrite(directory + '/template' + str(count) + '.PNG', img)
-  count = count + 1
+size = 50
 
 def main():
-  with mss() as sct:
-    while True:
-      x, y = pag.position()
-      area = {
-        "top": int(y - height / 2),
-        "left": int(x - width / 2),
-        "width": int(width),
-        "height": int(height)
-      }
-      logger.info(f"({x}, {y})")
-      im = np.array(sct.grab(area))
-      cv.imshow('preview', im)
+  settings = Settings()
+  settings.load()
+  directory = resolve_path(settings.img_dir)
+  logger.info(f"Hover over the bobber and press F8 to capture, Esc to quit. Saving to {directory}")
 
-      key_bit = cv.waitKey(25) & 0xFF
-      if key_bit == ord("q"):
-        break
-      with Listener(on_release=cap):
-        capture(im)
-  cv.destroyAllWindows()
+  def on_release(key):
+    if key == Key.f8:
+      logger.info(f"Saved {capture_at_cursor(directory, size)}")
+    elif key == Key.esc:
+      return False
+
+  with Listener(on_release=on_release) as listener:
+    listener.join()
 
 main()

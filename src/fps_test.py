@@ -1,16 +1,20 @@
 import sys, time
 import cv2 as cv
 import numpy as np
-from mss import mss
+try:
+  from mss import MSS as mss
+except ImportError:
+  from mss import mss
 from settings import Settings
-from setup import setup
+from setup import initialize
 import pyautogui as pag
 from loguru import logger
 
 
 
 config = Settings()
-setup(config)
+config.load()
+initialize(config)
 
 with mss() as sct:
   # Part of the screen to capture

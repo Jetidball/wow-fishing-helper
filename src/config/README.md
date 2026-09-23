@@ -1,40 +1,54 @@
-# Template config file:
+# Config file
+
+`config.json` is written by the settings window when you press Save or Start fishing, so you normally don't need to edit it by hand.
+Old config files (with `timeInSecsBeforeLogout` / `gracefulExit`) are still read and converted.
+Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, ranges are `[min, max]` in seconds unless the name says minutes.
 
 ```json
 {
-    "attachBait": true,
-    "timeInSecsBeforeLogout": 3600,
-    "autoLoot": true,
-    "imageDir": "",
-    "castLocation": {
-        "x": 0,
-        "y": 0
-    },
-    "poleLocation": {
-        "x": 0,
-        "y": 0
-    },
-    "baitLocation": {
-        "x": 0,
-        "y": 0
-    },
-    "areaOfInterest": [
-        {
-            "x": 0,
-            "y": 0
-        },
-        {
-            "x": 0,
-            "y": 0
-        },
-        {
-            "x": 0,
-            "y": 0
-        },
-    ],
-    "lootLocation": {
-        "x": 0,
-        "y": 0
-    }
+  "attachBait": false,
+  "numBait": 3,
+  "baitIntervalMins": 10,
+  "autoLoot": false,
+  "imgDir": "../images",
+  "splashThresholdWhitePx": 25,
+  "castLocation": {"x": 0, "y": 0},
+  "poleLocation": null,
+  "baitLocation": null,
+  "lootLocation": {"x": 0, "y": 0},
+  "hearthstoneLocation": null,
+  "areaOfInterest": [{"x": 0, "y": 0}, {"x": 0, "y": 0}, {"x": 0, "y": 0}],
+  "timing": {
+    "castDelay": [0.25, 1.0],
+    "splashSearchDelay": [1.5, 2.0],
+    "bobberClickDelay": [0.5, 1.5],
+    "lootDelay": [0.3, 0.8],
+    "mouseMoveDuration": [0.2, 0.6],
+    "clickJitterPx": 3,
+    "castTimeout": 30,
+    "distribution": "gaussian"
+  },
+  "humanize": {
+    "randomClickChance": 0.05,
+    "randomMoveChance": 0.03,
+    "moveJump": true,
+    "moveSidestep": false,
+    "moveMouseWander": true,
+    "shortBreakChance": 0.02,
+    "shortBreakSecs": [10, 45]
+  },
+  "session": {
+    "logoutMode": "fixed",
+    "logoutAfterMins": 60,
+    "logoutRandomMins": [45, 90],
+    "logoutAction": "logout",
+    "relogin": false,
+    "reloginBreakMins": [10, 30],
+    "reloginLoadSecs": 30,
+    "reloginFirstPerson": true,
+    "maxSessions": 0
+  }
 }
 ```
+
+`logoutMode` is `never`, `fixed` or `random`. `logoutAction` is `logout`, `hearth_logout` or `quit`.

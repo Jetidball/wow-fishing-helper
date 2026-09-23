@@ -10,37 +10,51 @@ methods because the fishing bobber has a predicable rotation and the image of th
 pixels in grayscale. Fixed things like fishing bait, fishing pole, loot, and cast action are found by user setup.
 
 ## How to Use
-You may follow the steps below. You can also watch a demo video down below.
+Install the requirements (`pip install -r src/requirements.txt`), then run `python state_machine.py` from the `src` folder as administrator.
+A settings window opens before the bot starts. Everything you set there is saved to `src/config/config.json`
+and loaded the next time. Run `python state_machine.py --no-gui` to skip the window and use the saved config as is.
+
+#### Settings window
+- **Timing**: time before casting again, the wait before searching for the bobber, the delay on the bobber click
+  (reaction time), the delay before looting, mouse move speed, click position jitter and the recast timeout. Every delay is a
+  min/max range that is picked at random each time, with a uniform or gaussian distribution.
+- **Humanize**: chance per cast of a random click on the water, chance of a random movement (jump, sidestep and back,
+  or mouse wander), and chance of a short break.
+- **Log out / Log in**: never log out, log out after a set time, or log out after a random time. When logging out it can
+  `/logout`, hearth first then `/logout`, or quit the game. It can log back in after a random break, and stop after a number of sessions.
+- **Bobber Images**: see, add and remove your bobber template images, or capture new ones straight from the game
+  (hover the bobber, press F8 for each picture, Esc to finish).
+- **Locations & Fishing**: pick the screen locations (fishing ability, loot, bait, fishing pole, hearthstone, and the area of interest),
+  bait and auto loot settings, and splash sensitivity. Anything left unset is asked for when the bot starts, the same way as before.
+
+About logging back in: after `/logout` the game sits at character select, and the bot presses Enter to log the last character back in.
+The bot never types your password, so it can't recover if the game fully disconnects to the login screen or you picked Quit.
+Draw your area of interest with the camera level in first person, since that's the view the bot restores after logging in.
 
 #### First-Time Setup
 The first thing to do is to gather some template images. These are images of the fishing bobber casted independently.
 Multiple images of different orientations and sizes of the fishing bobber is required to improve accuracy. 
-To capture these images, I recommend reducing the game window to the size that you think botting will proceed with and
-to capture these images with the Snipping Tool app. Save these images to wherever you want, and in `settings.py`, 
-provide the paths to these images that you want to use.
+Capture them with the **Capture from screen** button in the Bobber Images tab (or `gather-templates.py`), with the game
+window at the size you plan to bot at. You can also add images you took with the Snipping Tool.
 
 #### Steps
 1. Turn liquid quality to ultra.
 1. Find a body of water that is not reflecting the sun.
-1. Run the program `state_machine.py` as administrator.
-1. Look in first person, and start drawing the border to the area of interest. This area is the body of water where the fishing bobber may appear.
+1. Run the program `state_machine.py` as administrator and set things up in the settings window.
+1. If you haven't picked the area of interest yet: look in first person, and start drawing the border to the area of interest. This area is the body of water where the fishing bobber may appear.
  You will draw it by placing at least 3 points that define the shape, and these points are placed when the cursor hasn't 
  moved for 1 second. Leaving the cursor at the ending point will finish the shape.
-1. Now, point to the casting ability for 1 second.
-1. It will start fishing on its own, but you're not done...
-1. On the first round of fishing, it won't know where to loot, so hold the cursor at the appropriate location when your loot pops up.
-1. Now, you're done!
+1. If you haven't picked it yet, point to the casting ability for 1 second.
+1. It will start fishing on its own. If there is no loot location and auto loot is off, hold the cursor over the loot on the first catch.
+1. Press Esc at any time to stop the bot.
 
-Note: Once a splash is detected, there is an added click delay that ranges .5 - 1.5 seconds. This is
+Note: Once a splash is detected, there is a click delay (0.5 - 1.5 seconds by default, set in the Timing tab). This is
 intended to show human-like reaction to any admin that may suspect you for botting. Also, I wouldn't fish for more
 than a couple of hours.
 
-#### If attach_bait is set to True
-To do this, make sure that the attach_bait property is set to true in `settings.py`. This will attach fishing bait to the fishing pole every 10min.
-1. Follow steps 1-3 above.
-2. Point to the location of the bait in your inventory for 1 second.
-3. Point to the location of your fishing pole in your character menu for 1 second.
-4. Resume following the rest of the steps above, starting from step 4.
+#### If attach bait is on
+Tick **Attach bait** in the Locations & Fishing tab and pick the bait and fishing pole locations (or point to them for 1 second when the bot starts).
+Bait is reattached on the interval you set (10 minutes by default).
 
 #### Demo Video (Includes Attaching of Fishing Bait to Pole)
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=6conRJqjcTE
@@ -62,4 +76,5 @@ take command and show human-like reactions.
 - ~~If splash wasn't detected for casting time length, then recast. This means it fails. <- Statistic opportunity here.~~
 - ~~Create demo video~~
 - Create *better* demo video
-- Create programmatic way to capture new templates
+- ~~Create programmatic way to capture new templates~~
+- ~~Settings GUI~~
