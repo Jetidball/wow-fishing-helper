@@ -1,7 +1,12 @@
-import time, math, sys, os
+import time, math, sys, os, warnings
 import pyautogui as pag
 from pynput.keyboard import Listener, Key
-from pywinauto import Application
+# pywinauto puts the main thread in multithreaded COM mode by default, which makes
+# Windows file dialogs (the GUI's Browse/Add images/Open) hang. Use single-threaded mode instead.
+sys.coinit_flags = 2
+with warnings.catch_warnings():
+  warnings.simplefilter("ignore", UserWarning)
+  from pywinauto import Application
 from loguru import logger
 
 
