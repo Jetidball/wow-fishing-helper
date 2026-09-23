@@ -1,6 +1,12 @@
-import time, random
+import time, random, math
 import pyautogui as pag
 from loguru import logger
+
+MAX_FATIGUE = 2.0
+TAKEOVER_PX = 25
+
+fatigue_start = time.time()
+last_bot_pos = None
 
 def rand_between(rng, distribution="uniform"):
   lo, hi = rng
@@ -9,12 +15,38 @@ def rand_between(rng, distribution="uniform"):
   if distribution == "gaussian":
     # centered in the range, ~99.7% of values fall inside it; clamp the rest
     return min(hi, max(lo, random.gauss((lo + hi) / 2, (hi - lo) / 6)))
+  if distribution == "skewed":
+    # like human reaction times: usually about a third of the way into the range, with a long slow tail
+    return lo + (hi - lo) * min(1.0, random.lognormvariate(0, 0.5) / 3)
   return random.uniform(lo, hi)
 
+def start_fatigue():
+  global fatigue_start
+  fatigue_start = time.time()
+
+def fatigue_factor(settings):
+  hours = (time.time() - fatigue_start) / 3600
+  return min(MAX_FATIGUE, 1 + settings.fatigue_pct_per_hour / 100 * hours)
+
 def sleep_range(settings, rng):
-  secs = rand_between(rng, settings.timing_distribution)
+  secs = rand_between(rng, settings.timing_distribution) * fatigue_factor(settings)
   time.sleep(secs)
   return secs
+
+def _move(x, y, duration):
+  global last_bot_pos
+  pag.moveTo(x, y, duration=duration, tween=pag.easeInOutQuad)
+  last_bot_pos = pag.position()
+
+def set_bot_pos(pos):
+  global last_bot_pos
+  last_bot_pos = pos
+
+def user_moved_mouse():
+  if last_bot_pos is None:
+    return False
+  x, y = pag.position()
+  return math.hypot(x - last_bot_pos[0], y - last_bot_pos[1]) > TAKEOVER_PX
 
 def jitter(settings, point):
   j = int(settings.click_jitter_px)
@@ -25,8 +57,8 @@ def jitter(settings, point):
 def move_to(settings, point, use_jitter=True):
   if use_jitter:
     point = jitter(settings, point)
-  duration = rand_between(settings.mouse_move_duration, settings.timing_distribution)
-  pag.moveTo(point[0], point[1], duration=duration, tween=pag.easeInOutQuad)
+  duration = rand_between(settings.mouse_move_duration, settings.timing_distribution) * fatigue_factor(settings)
+  _move(point[0], point[1], duration)
 
 def random_point_in_area(settings):
   return (random.randint(settings.get_left(), settings.get_right()),
@@ -60,7 +92,7 @@ def mouse_wander(settings):
   for _ in range(random.randint(1, 3)):
     x = random.randint(int(w * 0.15), int(w * 0.85))
     y = random.randint(int(h * 0.15), int(h * 0.85))
-    pag.moveTo(x, y, duration=random.uniform(0.3, 1.0), tween=pag.easeInOutQuad)
+    _move(x, y, random.uniform(0.3, 1.0))
     time.sleep(random.uniform(0.1, 0.6))
 
 def random_movement(settings):

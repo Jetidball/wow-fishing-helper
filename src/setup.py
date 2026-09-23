@@ -8,6 +8,7 @@ with warnings.catch_warnings():
   warnings.simplefilter("ignore", UserWarning)
   from pywinauto import Application
 from loguru import logger
+import safety
 
 
 
@@ -43,6 +44,12 @@ def get_pole_loc(status=logger.info):
   pag.typewrite('c')
   return l
 
+def get_box(name, status=logger.info):
+  # two corners of a rectangle on screen
+  first = get_single_loc(f"top left corner of the {name}", status)
+  second = get_single_loc(f"bottom right corner of the {name}", status)
+  return [first, second]
+
 def get_area_of_interest(status=logger.info):
   status("Start drawing area of interest in...")
   countdown(3, status)
@@ -76,10 +83,12 @@ def focus_wow_window():
   except Exception as e:
     logger.warning(f"Could not focus the World of Warcraft window ({e}), make sure it is in front")
 
-def exit_bot(key):
+def on_key_release(key):
   if key is Key.esc:
     logger.info("Manual override... Exiting bot!")
     os._exit(0)
+  if key is Key.f9:
+    safety.toggle_pause()
 
 def initialize(settings):
   def get_extreme(arr, i, cmp):
@@ -95,7 +104,7 @@ def initialize(settings):
 
   # listen for manual override
   listener = Listener(
-    on_release=exit_bot)
+    on_release=on_key_release)
   listener.start()
 
   focus_wow_window()

@@ -17,9 +17,13 @@ and loaded the next time. Run `python state_machine.py --no-gui` to skip the win
 #### Settings window
 - **Timing**: time before casting again, the wait before searching for the bobber, the delay on the bobber click
   (reaction time), the delay before looting, mouse move speed, click position jitter and the recast timeout. Every delay is a
-  min/max range that is picked at random each time, with a uniform or gaussian distribution.
+  min/max range that is picked at random each time. "Skewed" (the default) works like human reaction times: usually quick,
+  sometimes slow. Gaussian and uniform are also available.
 - **Humanize**: chance per cast of a random click on the water, chance of a random movement (jump, sidestep and back,
-  or mouse wander), and chance of a short break.
+  or mouse wander), chance of a short break, a chance to miss a bite (noticing the splash too late), and fatigue: delays get
+  a bit longer each hour of a session and reset after logging out.
+- **Safety**: pause and beep when a new whisper shows up in chat, your health drops, several casts in a row get no bite
+  (for example if something moved you), or you move the mouse yourself. Deal with it, then press F9 to resume.
 - **Log out / Log in**: never log out, log out after a set time, or log out after a random time. When logging out it can
   `/logout`, hearth first then `/logout`, or quit the game. It can log back in after a random break, and stop after a number of sessions.
 - **Bobber Images**: see, add and remove your bobber template images, or capture new ones straight from the game
@@ -46,7 +50,7 @@ window at the size you plan to bot at. You can also add images you took with the
  moved for 1 second. Leaving the cursor at the ending point will finish the shape.
 1. If you haven't picked it yet, point to the casting ability for 1 second.
 1. It will start fishing on its own. If there is no loot location and auto loot is off, hold the cursor over the loot on the first catch.
-1. Press Esc at any time to stop the bot.
+1. Press F9 at any time to pause or resume, and Esc to stop the bot.
 
 Note: Once a splash is detected, there is a click delay (0.5 - 1.5 seconds by default, set in the Timing tab). This is
 intended to show human-like reaction to any admin that may suspect you for botting. Also, I wouldn't fish for more

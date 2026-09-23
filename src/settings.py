@@ -16,6 +16,10 @@ def _point(p):
 def _to_point(p):
   return None if p is None else {"x": int(p[0]), "y": int(p[1])}
 
+def _box(points):
+  # a screen box saved as its two corners
+  return [_point(p) for p in points] if points and len(points) == 2 else None
+
 def _range(r):
   return (float(r[0]), float(r[1]))
 
@@ -23,6 +27,8 @@ class Settings():
   def __init__(self):
     self.is_testing = False
     self.area_of_interest = None
+    self.chat_area = None
+    self.health_area = None
     self.top_left = None
     self.bot_right = None
     self.bait_location = None
@@ -46,7 +52,7 @@ class Settings():
     self.mouse_move_duration = (0.2, 0.6)
     self.click_jitter_px = 3
     self.cast_timeout = 30
-    self.timing_distribution = "gaussian"    # "uniform" or "gaussian"
+    self.timing_distribution = "skewed"      # "uniform", "gaussian" or "skewed"
 
     # humanization, chances are 0..1 and rolled once per cast
     self.random_click_chance = 0.05
@@ -56,6 +62,16 @@ class Settings():
     self.move_mouse_wander = True
     self.short_break_chance = 0.02
     self.short_break_secs = (10, 45)
+    self.miss_chance = 0.03                  # chance to react too late to a bite
+    self.fatigue_pct_per_hour = 15           # delays get this much longer per hour of a session
+
+    # safety, pause and alert when something unexpected happens
+    self.pause_on_whisper = True
+    self.pause_on_health_drop = True
+    self.health_drop_pct = 10
+    self.pause_after_no_bites = 5            # casts in a row, 0 = off
+    self.pause_on_mouse_takeover = True
+    self.alert_sound = True
 
     # session
     self.logout_mode = "fixed"               # "never", "fixed" or "random"
@@ -84,6 +100,8 @@ class Settings():
     self.hearthstone_location = _point(data.get("hearthstoneLocation"))
     aoi = data.get("areaOfInterest") or []
     self.area_of_interest = [_point(p) for p in aoi] if len(aoi) > 2 else None
+    self.chat_area = _box(data.get("chatArea"))
+    self.health_area = _box(data.get("healthArea"))
 
     t = data.get("timing", {})
     self.cast_delay = _range(t.get("castDelay", self.cast_delay))
@@ -103,6 +121,16 @@ class Settings():
     self.move_mouse_wander = h.get("moveMouseWander", self.move_mouse_wander)
     self.short_break_chance = h.get("shortBreakChance", self.short_break_chance)
     self.short_break_secs = _range(h.get("shortBreakSecs", self.short_break_secs))
+    self.miss_chance = h.get("missChance", self.miss_chance)
+    self.fatigue_pct_per_hour = h.get("fatiguePctPerHour", self.fatigue_pct_per_hour)
+
+    sf = data.get("safety", {})
+    self.pause_on_whisper = sf.get("pauseOnWhisper", self.pause_on_whisper)
+    self.pause_on_health_drop = sf.get("pauseOnHealthDrop", self.pause_on_health_drop)
+    self.health_drop_pct = sf.get("healthDropPct", self.health_drop_pct)
+    self.pause_after_no_bites = sf.get("pauseAfterNoBites", self.pause_after_no_bites)
+    self.pause_on_mouse_takeover = sf.get("pauseOnMouseTakeover", self.pause_on_mouse_takeover)
+    self.alert_sound = sf.get("alertSound", self.alert_sound)
 
     s = data.get("session")
     if s is None and "timeInSecsBeforeLogout" in data:
@@ -137,6 +165,8 @@ class Settings():
       "lootLocation": _to_point(self.loot_location),
       "hearthstoneLocation": _to_point(self.hearthstone_location),
       "areaOfInterest": [_to_point(p) for p in (self.area_of_interest or [])],
+      "chatArea": [_to_point(p) for p in self.chat_area] if self.chat_area else None,
+      "healthArea": [_to_point(p) for p in self.health_area] if self.health_area else None,
       "timing": {
         "castDelay": list(self.cast_delay),
         "splashSearchDelay": list(self.splash_search_delay),
@@ -155,6 +185,16 @@ class Settings():
         "moveMouseWander": self.move_mouse_wander,
         "shortBreakChance": self.short_break_chance,
         "shortBreakSecs": list(self.short_break_secs),
+        "missChance": self.miss_chance,
+        "fatiguePctPerHour": self.fatigue_pct_per_hour,
+      },
+      "safety": {
+        "pauseOnWhisper": self.pause_on_whisper,
+        "pauseOnHealthDrop": self.pause_on_health_drop,
+        "healthDropPct": self.health_drop_pct,
+        "pauseAfterNoBites": self.pause_after_no_bites,
+        "pauseOnMouseTakeover": self.pause_on_mouse_takeover,
+        "alertSound": self.alert_sound,
       },
       "session": {
         "logoutMode": self.logout_mode,

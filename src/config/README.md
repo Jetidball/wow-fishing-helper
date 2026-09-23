@@ -18,6 +18,8 @@ Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, r
   "lootLocation": {"x": 0, "y": 0},
   "hearthstoneLocation": null,
   "areaOfInterest": [{"x": 0, "y": 0}, {"x": 0, "y": 0}, {"x": 0, "y": 0}],
+  "chatArea": [{"x": 0, "y": 0}, {"x": 0, "y": 0}],
+  "healthArea": null,
   "timing": {
     "castDelay": [0.25, 1.0],
     "splashSearchDelay": [1.5, 2.0],
@@ -26,7 +28,7 @@ Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, r
     "mouseMoveDuration": [0.2, 0.6],
     "clickJitterPx": 3,
     "castTimeout": 30,
-    "distribution": "gaussian"
+    "distribution": "skewed"
   },
   "humanize": {
     "randomClickChance": 0.05,
@@ -35,7 +37,17 @@ Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, r
     "moveSidestep": false,
     "moveMouseWander": true,
     "shortBreakChance": 0.02,
-    "shortBreakSecs": [10, 45]
+    "shortBreakSecs": [10, 45],
+    "missChance": 0.03,
+    "fatiguePctPerHour": 15
+  },
+  "safety": {
+    "pauseOnWhisper": true,
+    "pauseOnHealthDrop": true,
+    "healthDropPct": 10,
+    "pauseAfterNoBites": 5,
+    "pauseOnMouseTakeover": true,
+    "alertSound": true
   },
   "session": {
     "logoutMode": "fixed",
@@ -51,4 +63,5 @@ Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, r
 }
 ```
 
+`chatArea` and `healthArea` are two corners of a box. `distribution` is `skewed`, `gaussian` or `uniform`.
 `logoutMode` is `never`, `fixed` or `random`. `logoutAction` is `logout`, `hearth_logout` or `quit`.

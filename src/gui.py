@@ -4,14 +4,16 @@ from tkinter import ttk, filedialog, messagebox
 import cv2 as cv
 from pynput.keyboard import Key, Listener
 from settings import resolve_path, IMAGE_EXTS
-from setup import get_single_loc, get_pole_loc, get_area_of_interest, focus_wow_window
+from setup import get_single_loc, get_pole_loc, get_area_of_interest, get_box, focus_wow_window
 from template_capture import capture_at_cursor
 
 THUMB_SIZE = 72
 THUMB_COLUMNS = 6
 SELECTED_BG = "#3b82f6"
 
-DISTRIBUTIONS = [("gaussian", "Gaussian (clusters around the middle)"), ("uniform", "Uniform (anywhere in the range)")]
+DISTRIBUTIONS = [("skewed", "Skewed (mostly quick, sometimes slow)"), ("gaussian", "Gaussian (clusters around the middle)"),
+                 ("uniform", "Uniform (anywhere in the range)")]
+BOX_ATTRS = ("chat_area", "health_area")
 LOGOUT_ACTIONS = [("logout", "/logout"), ("hearth_logout", "Hearthstone, then /logout"), ("quit", "Quit game (Alt+F4)")]
 
 
@@ -58,6 +60,7 @@ class App():
     self.capture_listener = None
     self.selected_images = set()
     self.thumbs = []
+    self.loc_labels = {}
 
     self.root = tk.Tk()
     self.root.title("WoW Fishing Bot")
@@ -68,13 +71,14 @@ class App():
     nb.pack(fill="both", expand=True, padx=8, pady=(8, 0))
     nb.add(self.timing_tab(nb), text="Timing")
     nb.add(self.humanize_tab(nb), text="Humanize")
+    nb.add(self.safety_tab(nb), text="Safety")
     nb.add(self.session_tab(nb), text="Log out / Log in")
     nb.add(self.images_tab(nb), text="Bobber Images")
     nb.add(self.setup_tab(nb), text="Locations & Fishing")
 
     bottom = ttk.Frame(self.root)
     bottom.pack(fill="x", padx=8, pady=8)
-    self.status = tk.StringVar(value="Configure the bot, then press Start fishing. Esc stops the bot while it runs.")
+    self.status = tk.StringVar(value="Configure the bot, then press Start fishing. While it runs, F9 pauses/resumes and Esc quits.")
     ttk.Label(bottom, textvariable=self.status, wraplength=380).pack(side="left", fill="x", expand=True)
     ttk.Button(bottom, text="Cancel", command=self.cancel).pack(side="right")
     ttk.Button(bottom, text="Start fishing", command=self.start).pack(side="right", padx=4)
@@ -201,6 +205,25 @@ class App():
     ttk.Label(p, text="min").grid(row=9, column=1, sticky="w", padx=(8, 0))
     ttk.Label(p, text="max").grid(row=9, column=2, sticky="w", padx=(4, 0))
     self.rng(p, 10, "Short break length", "short_break_secs", "seconds")
+    self.section(p, 11, "Mistakes and fatigue")
+    self.num(p, 12, "Miss a bite chance", "miss_chance", "% of bites, notices the splash too late and recasts", hi=100, scale=100)
+    self.num(p, 13, "Slow down over a session", "fatigue_pct_per_hour", "% longer delays per hour, resets after a log out", hi=100)
+    return p
+
+  def safety_tab(self, nb):
+    p = self.page(nb)
+    self.note(p, 0, "When one of these triggers, the bot stops where it is and beeps. Deal with it yourself, then press F9 to resume. "
+                    "F9 also pauses at any time, and Esc quits.")
+    self.check(p, 1, "Pause when a new whisper shows up in chat (default pink whisper color)", "pause_on_whisper")
+    self.loc_row(p, 2, "chat_area", "Chat box")
+    self.check(p, 3, "Pause when my health drops", "pause_on_health_drop")
+    self.loc_row(p, 4, "health_area", "Health bar")
+    self.num(p, 5, "Health drop that pauses", "health_drop_pct", "% of the bar", lo=1, hi=100)
+    self.num(p, 6, "Pause after casts with no bite", "pause_after_no_bites", "in a row (0 = off), catches being moved or a GM teleport", cast=int)
+    self.check(p, 7, "Pause when I move the mouse myself (take over)", "pause_on_mouse_takeover")
+    self.check(p, 8, "Beep when paused", "alert_sound")
+    self.note(p, 9, "Pick the chat box and health bar by pointing at their top left then bottom right corner. "
+                    "Checks that have no box picked are skipped.")
     return p
 
   def session_tab(self, nb):
@@ -265,21 +288,11 @@ class App():
     self.section(p, 0, "Screen locations")
     self.note(p, 1, "Pick minimizes this window. Hold the cursor still over the spot for 1 second after the 3 second countdown. "
                     "Anything left unset is asked for when the bot starts.")
-    self.loc_labels = {}
     rows = [("cast_location", "Fishing ability (action bar)"), ("loot_location", "Loot window item"),
             ("bait_location", "Bait in bags"), ("pole_location", "Fishing pole (character panel)"),
             ("hearthstone_location", "Hearthstone (action bar)"), ("area_of_interest", "Area of interest (water)")]
     for i, (attr, label) in enumerate(rows):
-      r = 2 + i
-      ttk.Label(p, text=label).grid(row=r, column=0, sticky="w", pady=2)
-      value = tk.StringVar()
-      self.loc_labels[attr] = value
-      ttk.Label(p, textvariable=value, width=16).grid(row=r, column=1, columnspan=2, sticky="w", padx=(8, 0))
-      btns = ttk.Frame(p)
-      btns.grid(row=r, column=3, sticky="w")
-      ttk.Button(btns, text="Pick", width=6, command=lambda a=attr, l=label: self.pick(a, l)).pack(side="left")
-      ttk.Button(btns, text="Clear", width=6, command=lambda a=attr: self.clear_loc(a)).pack(side="left", padx=4)
-      self.show_loc(attr)
+      self.loc_row(p, 2 + i, attr, label)
 
     self.section(p, 8, "Fishing")
     self.check(p, 9, "Auto loot is on in game", "auto_loot")
@@ -288,6 +301,17 @@ class App():
     self.num(p, 12, "Re-bait every", "bait_interval_mins", "minutes", lo=1)
     self.num(p, 13, "Splash sensitivity", "splash_threshold_whitepx", "white pixels needed, lower = more sensitive", cast=int, lo=1)
     return p
+
+  def loc_row(self, p, r, attr, label):
+    ttk.Label(p, text=label).grid(row=r, column=0, sticky="w", pady=2)
+    value = tk.StringVar()
+    self.loc_labels[attr] = value
+    ttk.Label(p, textvariable=value, width=16).grid(row=r, column=1, columnspan=2, sticky="w", padx=(8, 0))
+    btns = ttk.Frame(p)
+    btns.grid(row=r, column=3, sticky="w")
+    ttk.Button(btns, text="Pick", width=6, command=lambda: self.pick(attr, label)).pack(side="left")
+    ttk.Button(btns, text="Clear", width=6, command=lambda: self.clear_loc(attr)).pack(side="left", padx=4)
+    self.show_loc(attr)
 
   # ---------- state ----------
 
@@ -365,6 +389,8 @@ class App():
       text = "not set"
     elif attr == "area_of_interest":
       text = f"{len(v)} points"
+    elif attr in BOX_ATTRS:
+      text = f"{abs(v[1][0] - v[0][0])} x {abs(v[1][1] - v[0][1])} box"
     else:
       text = f"({v[0]}, {v[1]})"
     self.loc_labels[attr].set(text)
@@ -385,6 +411,8 @@ class App():
       time.sleep(0.3)
       if attr == "area_of_interest":
         value = get_area_of_interest(status)
+      elif attr in BOX_ATTRS:
+        value = get_box(label.lower(), status)
       elif attr == "pole_location":
         value = get_pole_loc(status)
       else:

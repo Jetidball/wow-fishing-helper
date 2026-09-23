@@ -1,4 +1,4 @@
-import time, sys, os
+import time, sys, os, random
 import cv2 as cv
 import numpy as np
 from mss import exception as MSSException
@@ -10,6 +10,7 @@ from splash_detector import is_splash_whitepx
 import pyautogui as pag
 from loguru import logger
 from humanize import move_to, sleep_range
+import safety
 
 METHOD = cv.TM_CCOEFF_NORMED
 
@@ -35,6 +36,12 @@ def get_updated_bobber_loc(settings, img):
     "value": highest_val
   }
 
+# search_and_destroy results
+CAUGHT = "caught"      # clicked the bobber after a splash
+MISSED = "missed"      # saw the splash but reacted too late on purpose
+NO_BITE = "no_bite"    # no splash before the cast timed out
+ABORTED = "aborted"    # paused or quit mid cast
+
 def search_and_destroy(settings):
   monitor = settings.get_monitor()
   start_time = time.time()
@@ -44,7 +51,9 @@ def search_and_destroy(settings):
     best_target_value = 0
     while "Screen capturing":
       if time.time() - start_time > settings.cast_timeout:
-        return False
+        return NO_BITE
+      if safety.paused.is_set() or safety.check_and_pause(settings):
+        return ABORTED
       if cv.waitKey(25) & 0xFF == ord("q"):
         break
       img = None
@@ -68,10 +77,16 @@ def search_and_destroy(settings):
         continue
       is_splashed = is_splash_whitepx(settings.splash_threshold_whitepx, img)
       if is_splashed:
+        if random.random() < settings.miss_chance:
+          # a person sometimes looks away; the fish gets away and they recast
+          late = random.uniform(3, 7)
+          logger.info(f"Splash! Missing it on purpose, noticing {late:.1f}s late")
+          time.sleep(late)
+          return MISSED
         delay = sleep_range(settings, settings.bobber_click_delay)
         logger.info(f"Splash! Clicking bobber after {delay:.2f}s")
         pag.rightClick()
-        return True
+        return CAUGHT
 
   cv.destroyAllWindows()
-  return False
+  return ABORTED

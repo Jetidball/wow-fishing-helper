@@ -1,11 +1,12 @@
 import time, sys, os
 import pyautogui as pag
-from bob_finder import search_and_destroy
+from bob_finder import search_and_destroy, CAUGHT, NO_BITE, ABORTED
 from setup import initialize, get_single_loc
 from clicker import bait
 from settings import Settings
 from session import Session
-from humanize import move_to, sleep_range, maybe_idle_actions
+from humanize import move_to, sleep_range, maybe_idle_actions, set_bot_pos
+import safety
 from loguru import logger
 
 config = Settings()
@@ -58,9 +59,12 @@ def pre_cast():
   global time_attached
   if session.expired():
     session.end()
-    # bait wore off while logged out
+    # bait wore off while logged out, and the mouse was free during the break
     time_attached = 0
+    safety.reset()
     move_state(attach_bait)
+    return
+  if safety.check_and_pause(config, force=True):
     return
   maybe_idle_actions(config)
   move_state(cast)
@@ -76,10 +80,14 @@ def find_hover_wait():
   global round_count, successes
   sleep_range(config, config.splash_search_delay)
   result = search_and_destroy(config)
+  if result == ABORTED:
+    move_state(attach_bait)
+    return
   round_count = round_count + 1
-  successes = successes + (1 if result else 0)
+  successes = successes + (0 if result == NO_BITE else 1)
   logger.info("Accuracy is %f%% (n=%d)" % (round(100 * successes/round_count), round_count) )
-  move_state(loot_fish if result else attach_bait)
+  safety.record_cast(config, result != NO_BITE)
+  move_state(loot_fish if result == CAUGHT else attach_bait)
 
 def loot_fish():
   logger.info("Looting")
@@ -89,6 +97,7 @@ def loot_fish():
       move_to(config, config.loot_location)
     else:
       config.loot_location = get_single_loc('loot')
+      set_bot_pos(config.loot_location)
       logger.info(f"Location is {config.loot_location}, set it in the GUI to skip this next time")
     pag.rightClick()
   move_state(attach_bait)
@@ -102,4 +111,5 @@ if __name__ == "__main__":
       sys.exit(0)
 
   while True:
+    safety.wait_if_paused(config)
     state_func()

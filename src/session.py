@@ -1,7 +1,7 @@
 import time, os
 import pyautogui as pag
 from loguru import logger
-from humanize import rand_between, move_to, type_text, session_length_secs
+from humanize import rand_between, move_to, type_text, session_length_secs, start_fatigue
 from setup import focus_wow_window
 
 class Session():
@@ -15,6 +15,7 @@ class Session():
     self.count = self.count + 1
     self.start_time = time.time()
     self.length = session_length_secs(self.settings)
+    start_fatigue()
     if self.length is None:
       logger.info(f"Session {self.count} started (no logout timer)")
     else:
