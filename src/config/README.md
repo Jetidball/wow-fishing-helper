@@ -59,9 +59,26 @@ Locations set to `null` are asked for when the bot starts. Chances are 0 to 1, r
     "reloginLoadSecs": 30,
     "reloginFirstPerson": true,
     "maxSessions": 0
+  },
+  "loot": {
+    "tracking": true,
+    "iconArea": [{"x": 0, "y": 0}, {"x": 0, "y": 0}],
+    "slotPitchPx": 0,
+    "maxSlots": 4,
+    "lootAllSlots": true,
+    "dir": "../loot",
+    "tesseractCmd": ""
+  },
+  "overlay": {
+    "show": true,
+    "corner": "top_right",
+    "runningAvgCasts": 20
   }
 }
 ```
+
+`loot.iconArea` is the box around the first loot slot's icon; `slotPitchPx` 0 guesses the slot spacing from the icon size.
+`overlay.corner` is `top_left`, `top_right`, `bottom_left` or `bottom_right`.
 
 `chatArea` and `healthArea` are two corners of a box. `distribution` is `skewed`, `gaussian` or `uniform`.
 `logoutMode` is `never`, `fixed` or `random`. `logoutAction` is `logout`, `hearth_logout` or `quit`.

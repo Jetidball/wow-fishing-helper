@@ -84,6 +84,20 @@ class Settings():
     self.relogin_first_person = True
     self.max_sessions = 0                    # 0 = unlimited
 
+    # loot tracking
+    self.loot_tracking = True
+    self.loot_icon_area = None               # box around the first loot slot's icon
+    self.loot_slot_pitch_px = 0              # distance between slots, 0 = guess from the icon size
+    self.loot_max_slots = 4
+    self.loot_all_slots = True               # loot every item instead of only the first
+    self.loot_dir = "../loot"                # icon library, screenshots and the loot log
+    self.tesseract_cmd = ""                  # blank = look in the default install folder
+
+    # overlay
+    self.show_overlay = True
+    self.overlay_corner = "top_right"        # "top_left", "top_right", "bottom_left" or "bottom_right"
+    self.running_avg_casts = 20              # casts in the running average
+
     self.templates = []
 
   def apply(self, data):
@@ -151,6 +165,20 @@ class Settings():
     self.relogin_first_person = s.get("reloginFirstPerson", self.relogin_first_person)
     self.max_sessions = s.get("maxSessions", self.max_sessions)
 
+    l = data.get("loot", {})
+    self.loot_tracking = l.get("tracking", self.loot_tracking)
+    self.loot_icon_area = _box(l.get("iconArea"))
+    self.loot_slot_pitch_px = l.get("slotPitchPx", self.loot_slot_pitch_px)
+    self.loot_max_slots = l.get("maxSlots", self.loot_max_slots)
+    self.loot_all_slots = l.get("lootAllSlots", self.loot_all_slots)
+    self.loot_dir = l.get("dir") or self.loot_dir
+    self.tesseract_cmd = l.get("tesseractCmd", self.tesseract_cmd)
+
+    o = data.get("overlay", {})
+    self.show_overlay = o.get("show", self.show_overlay)
+    self.overlay_corner = o.get("corner", self.overlay_corner)
+    self.running_avg_casts = o.get("runningAvgCasts", self.running_avg_casts)
+
   def to_dict(self):
     return {
       "attachBait": self.attach_bait,
@@ -206,6 +234,20 @@ class Settings():
         "reloginLoadSecs": self.relogin_load_secs,
         "reloginFirstPerson": self.relogin_first_person,
         "maxSessions": self.max_sessions,
+      },
+      "loot": {
+        "tracking": self.loot_tracking,
+        "iconArea": [_to_point(p) for p in self.loot_icon_area] if self.loot_icon_area else None,
+        "slotPitchPx": self.loot_slot_pitch_px,
+        "maxSlots": self.loot_max_slots,
+        "lootAllSlots": self.loot_all_slots,
+        "dir": self.loot_dir,
+        "tesseractCmd": self.tesseract_cmd,
+      },
+      "overlay": {
+        "show": self.show_overlay,
+        "corner": self.overlay_corner,
+        "runningAvgCasts": self.running_avg_casts,
       },
     }
 

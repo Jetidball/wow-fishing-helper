@@ -13,8 +13,9 @@ SELECTED_BG = "#3b82f6"
 
 DISTRIBUTIONS = [("skewed", "Skewed (mostly quick, sometimes slow)"), ("gaussian", "Gaussian (clusters around the middle)"),
                  ("uniform", "Uniform (anywhere in the range)")]
-BOX_ATTRS = ("chat_area", "health_area")
+BOX_ATTRS = ("chat_area", "health_area", "loot_icon_area")
 LOGOUT_ACTIONS = [("logout", "/logout"), ("hearth_logout", "Hearthstone, then /logout"), ("quit", "Quit game (Alt+F4)")]
+CORNERS = [("top_left", "Top left"), ("top_right", "Top right"), ("bottom_left", "Bottom left"), ("bottom_right", "Bottom right")]
 
 
 def fmt(v):
@@ -75,6 +76,7 @@ class App():
     nb.add(self.session_tab(nb), text="Log out / Log in")
     nb.add(self.images_tab(nb), text="Bobber Images")
     nb.add(self.setup_tab(nb), text="Locations & Fishing")
+    nb.add(self.loot_tab(nb), text="Loot & Overlay")
 
     bottom = ttk.Frame(self.root)
     bottom.pack(fill="x", padx=8, pady=8)
@@ -301,6 +303,44 @@ class App():
     self.num(p, 12, "Re-bait every", "bait_interval_mins", "minutes", lo=1)
     self.num(p, 13, "Splash sensitivity", "splash_threshold_whitepx", "white pixels needed, lower = more sensitive", cast=int, lo=1)
     return p
+
+  def loot_tab(self, nb):
+    p = self.page(nb)
+    self.section(p, 0, "Loot tracking")
+    self.check(p, 1, "Screenshot the loot window, identify the items and log them", "loot_tracking")
+    self.loc_row(p, 2, "loot_icon_area", "First loot icon")
+    self.num(p, 3, "Slot spacing", "loot_slot_pitch_px", "pixels from one icon's top to the next (0 = guess)", cast=int, hi=300)
+    self.num(p, 4, "Slots to check", "loot_max_slots", "", cast=int, lo=1, hi=8)
+    self.check(p, 5, "Loot every item (off = only the first slot, like before)", "loot_all_slots")
+    ttk.Label(p, text="Loot folder").grid(row=6, column=0, sticky="w", pady=3)
+    folder = ttk.Frame(p)
+    folder.grid(row=6, column=1, columnspan=3, sticky="we", padx=(8, 0))
+    self.loot_dir = tk.StringVar(value=self.s.loot_dir)
+    self.fields.append(("loot_dir", self.loot_dir.get))
+    ttk.Entry(folder, textvariable=self.loot_dir, width=30).pack(side="left", fill="x", expand=True)
+    ttk.Button(folder, text="Open", command=self.open_loot_dir).pack(side="left", padx=(4, 0))
+    ttk.Label(p, text="Tesseract path").grid(row=7, column=0, sticky="w", pady=3)
+    self.tesseract = tk.StringVar(value=self.s.tesseract_cmd)
+    self.fields.append(("tesseract_cmd", self.tesseract.get))
+    ttk.Entry(p, textvariable=self.tesseract, width=40).grid(row=7, column=1, columnspan=3, sticky="w", padx=(8, 0))
+    self.note(p, 8, "Pick the box by pointing at the top left then bottom right corner of the first item's icon while a loot "
+                    "window is open. Turn off \"Open loot window at mouse\" in game so it always opens in the same place. "
+                    "Item names are read with Tesseract OCR if it's installed (blank path = default install folder); icons are "
+                    "learned automatically and used when OCR can't read a name. Icons it can't name go to icons/unknown, rename "
+                    "one to the item's name and move it up a folder to teach it. Screenshots and loot_log.csv go in the loot folder.")
+
+    self.section(p, 9, "Overlay")
+    self.check(p, 10, "Show stats and running averages on screen while fishing", "show_overlay")
+    self.choice(p, 11, "Corner", "overlay_corner", CORNERS)
+    self.num(p, 12, "Running average over", "running_avg_casts", "casts", cast=int, lo=1, hi=1000)
+    self.note(p, 13, "The overlay is click-through and hidden from the bot's own screenshots. "
+                     "WoW needs to run in windowed or windowed fullscreen mode for it to show on top.")
+    return p
+
+  def open_loot_dir(self):
+    d = resolve_path(self.loot_dir.get() or ".")
+    os.makedirs(d, exist_ok=True)
+    os.startfile(d)
 
   def loc_row(self, p, r, attr, label):
     ttk.Label(p, text=label).grid(row=r, column=0, sticky="w", pady=2)

@@ -7,18 +7,23 @@ from settings import Settings
 from session import Session
 from humanize import move_to, sleep_range, maybe_idle_actions, set_bot_pos
 import safety
+from stats import Stats
+from loot import LootTracker
+from overlay import start_overlay
 from loguru import logger
 
 config = Settings()
 session = Session(config)
+stats = None
+loot = None
 ui_is_hidden = True
 time_attached = 0
-round_count = 0
-successes = 0
+cast_time = 0
 
 def init():
   logger.info("Initializing")
   initialize(config)
+  loot.start()
   session.start()
   move_state(attach_bait)
 
@@ -70,27 +75,39 @@ def pre_cast():
   move_state(cast)
 
 def cast():
+  global cast_time
   sleep_range(config, config.cast_delay)
   move_to(config, config.cast_location)
   pag.click()
+  cast_time = time.time()
   logger.info("Clicked fishing ability")
   move_state(find_hover_wait)
 
 def find_hover_wait():
-  global round_count, successes
   sleep_range(config, config.splash_search_delay)
   result = search_and_destroy(config)
   if result == ABORTED:
     move_state(attach_bait)
     return
-  round_count = round_count + 1
-  successes = successes + (0 if result == NO_BITE else 1)
-  logger.info("Accuracy is %f%% (n=%d)" % (round(100 * successes/round_count), round_count) )
+  stats.record_cast(result, time.time() - cast_time)
+  st = stats.snapshot()
+  logger.info(f"Catch rate {100 * st['catch_rate']:.0f}% (n={st['casts']}), "
+              f"last {st['recent_n']}: {100 * st['recent_catch_rate']:.0f}%")
   safety.record_cast(config, result != NO_BITE)
   move_state(loot_fish if result == CAUGHT else attach_bait)
 
+def click_loot(points):
+  # bottom slot first, so it doesn't matter if the slots below shift up after one is taken
+  for p in reversed(points):
+    sleep_range(config, config.loot_delay)
+    move_to(config, p)
+    pag.rightClick()
+
 def loot_fish():
   logger.info("Looting")
+  if loot.on_catch(session.count, None if config.auto_loot else click_loot):
+    move_state(attach_bait)
+    return
   if not config.auto_loot:
     sleep_range(config, config.loot_delay)
     if config.loot_location:
@@ -109,6 +126,11 @@ if __name__ == "__main__":
     if not run_gui(config):
       logger.info("Closed without starting.")
       sys.exit(0)
+
+  stats = Stats(config.running_avg_casts)
+  loot = LootTracker(config, stats)
+  if config.show_overlay:
+    start_overlay(config, stats)
 
   while True:
     safety.wait_if_paused(config)
