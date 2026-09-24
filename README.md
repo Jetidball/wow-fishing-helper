@@ -1,5 +1,6 @@
-# wow-fishing-bot
-A fishing bot for World of Warcraft created with OpenCV. 
+# wow-fishing-helper
+
+A fishing helper for World of Warcraft created with OpenCV. 
 
 ## How it Works
 This program captures a portion of the screen and simulates mouse and
@@ -11,7 +12,7 @@ pixels in grayscale. Fixed things like fishing bait, fishing pole, loot, and cas
 
 ## How to Use
 Install the requirements (`pip install -r src/requirements.txt`), then run `python state_machine.py` from the `src` folder as administrator.
-A settings window opens before the bot starts. Everything you set there is saved to `src/config/config.json`
+A settings window opens before the helper starts. Everything you set there is saved to `src/config/config.json`
 and loaded the next time. Run `python state_machine.py --no-gui` to skip the window and use the saved config as is.
 
 #### Settings window
@@ -29,11 +30,11 @@ and loaded the next time. Run `python state_machine.py --no-gui` to skip the win
 - **Bobber Images**: see, add and remove your bobber template images, or capture new ones straight from the game
   (hover the bobber, press F8 for each picture, Esc to finish).
 - **Locations & Fishing**: pick the screen locations (fishing ability, loot, bait, fishing pole, hearthstone, and the area of interest),
-  bait and auto loot settings, and splash sensitivity. Anything left unset is asked for when the bot starts, the same way as before.
+  bait and auto loot settings, and splash sensitivity. Anything left unset is asked for when the helper starts, the same way as before.
 - **Loot & Overlay**: loot tracking and the on-screen stats overlay, see below.
 
 #### Loot tracking
-After every catch the bot screenshots the loot window, works out what each item is, loots it and writes a row per item to
+After every catch the helper screenshots the loot window, works out what each item is, loots it and writes a row per item to
 `loot/loot_log.csv` (time, session, slot, item, quality, how it was identified, whether it was pulled or left behind, and
 the screenshot file). Screenshots are saved in `loot/screens/<date>/`.
 - Pick the **First loot icon** box in the Loot & Overlay tab with a loot window open, and turn off "Open loot window at mouse" in game.
@@ -51,15 +52,15 @@ A small click-through window in a corner of the screen shows run time, casts, bi
 (overall and as a running average over the last N casts), the average time from cast to catch, the last loot and the most
 caught items. It is hidden from screen capture so it can't interfere with detection. Run WoW windowed or windowed fullscreen.
 
-About logging back in: after `/logout` the game sits at character select, and the bot presses Enter to log the last character back in.
-The bot never types your password, so it can't recover if the game fully disconnects to the login screen or you picked Quit.
-Draw your area of interest with the camera level in first person, since that's the view the bot restores after logging in.
+About logging back in: after `/logout` the game sits at character select, and the helper presses Enter to log the last character back in.
+The helper never types your password, so it can't recover if the game fully disconnects to the login screen or you picked Quit.
+Draw your area of interest with the camera level in first person, since that's the view the helper restores after logging in.
 
 #### First-Time Setup
 The first thing to do is to gather some template images. These are images of the fishing bobber casted independently.
 Multiple images of different orientations and sizes of the fishing bobber is required to improve accuracy. 
 Capture them with the **Capture from screen** button in the Bobber Images tab (or `gather-templates.py`), with the game
-window at the size you plan to bot at. You can also add images you took with the Snipping Tool.
+window at the size you plan to helper at. You can also add images you took with the Snipping Tool.
 
 #### Steps
 1. Turn liquid quality to ultra.
@@ -70,14 +71,14 @@ window at the size you plan to bot at. You can also add images you took with the
  moved for 1 second. Leaving the cursor at the ending point will finish the shape.
 1. If you haven't picked it yet, point to the casting ability for 1 second.
 1. It will start fishing on its own. If there is no loot location and auto loot is off, hold the cursor over the loot on the first catch.
-1. Press F9 at any time to pause or resume, and Esc to stop the bot.
+1. Press F9 at any time to pause or resume, and Esc to stop the helper.
 
 Note: Once a splash is detected, there is a click delay (0.5 - 1.5 seconds by default, set in the Timing tab). This is
-intended to show human-like reaction to any admin that may suspect you for botting. Also, I wouldn't fish for more
+intended to show human-like reaction to any admin that may suspect you for helperting. Also, I wouldn't fish for more
 than a couple of hours.
 
 #### If attach bait is on
-Tick **Attach bait** in the Locations & Fishing tab and pick the bait and fishing pole locations (or point to them for 1 second when the bot starts).
+Tick **Attach bait** in the Locations & Fishing tab and pick the bait and fishing pole locations (or point to them for 1 second when the helper starts).
 Bait is reattached on the interval you set (10 minutes by default).
 
 #### Demo Video (Includes Attaching of Fishing Bait to Pole)
