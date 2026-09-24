@@ -30,6 +30,26 @@ and loaded the next time. Run `python state_machine.py --no-gui` to skip the win
   (hover the bobber, press F8 for each picture, Esc to finish).
 - **Locations & Fishing**: pick the screen locations (fishing ability, loot, bait, fishing pole, hearthstone, and the area of interest),
   bait and auto loot settings, and splash sensitivity. Anything left unset is asked for when the bot starts, the same way as before.
+- **Loot & Overlay**: loot tracking and the on-screen stats overlay, see below.
+
+#### Loot tracking
+After every catch the bot screenshots the loot window, works out what each item is, loots it and writes a row per item to
+`loot/loot_log.csv` (time, session, slot, item, quality, how it was identified, whether it was pulled or left behind, and
+the screenshot file). Screenshots are saved in `loot/screens/<date>/`.
+- Pick the **First loot icon** box in the Loot & Overlay tab with a loot window open, and turn off "Open loot window at mouse" in game.
+- Item names are read with OCR if [Tesseract](https://github.com/UB-Mannheim/tesseract/wiki) is installed (`pip install pytesseract` too).
+  Quality comes from the name's color.
+- Every icon seen with a name is saved to `loot/icons/<Item Name>.png`, so items are still recognized by their icon when OCR
+  can't read them (or without Tesseract at all). Icons it can't name land in `loot/icons/unknown/`: rename one to the item's
+  name and move it up into `loot/icons/` to teach it. Keep in mind some items share an icon.
+- "Pulled" is checked by comparing the loot window before and after looting, so anything left behind (with "Loot every item"
+  off, or if a click missed) is logged as `pulled=no`.
+- With auto loot on, the window may close before it's captured; the catch is then only counted, not logged.
+
+#### Overlay
+A small click-through window in a corner of the screen shows run time, casts, bites, catches, the catch rate and fish per hour
+(overall and as a running average over the last N casts), the average time from cast to catch, the last loot and the most
+caught items. It is hidden from screen capture so it can't interfere with detection. Run WoW windowed or windowed fullscreen.
 
 About logging back in: after `/logout` the game sits at character select, and the bot presses Enter to log the last character back in.
 The bot never types your password, so it can't recover if the game fully disconnects to the login screen or you picked Quit.
