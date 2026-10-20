@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "local_confirm",
+  "profile_version": 1,
+  "model": {
+    "backend": "template",
+    "templates": "../../data/local-confirm-templates",
+    "release": "active",
+    "device": "cpu",
+    "imgsz": 960
+  },
+  "allowed_classes": [
+    "confirm_button"
+  ],
+  "target_class": "confirm_button",
+  "allowed_windows": [
+    {
+      "title": "Fishing helper - local mouse verification only",
+      "executables": [
+        "python.exe",
+        "pythonw.exe"
+      ]
+    }
+  ],
+  "click_anchor": [
+    0.6,
+    0.5
+  ],
+  "confidence": 0.7,
+  "review_below": 0.9,
+  "max_frame_age": 0.5,
+  "outcome": {
+    "kind": "local_event",
+    "value": "target_2_released",
+    "timeout_seconds": 3
+  },
+  "promotion": {
+    "min_precision": 0.95,
+    "min_recall": 0.9,
+    "max_false_per_cast": 0.1
+  }
+}

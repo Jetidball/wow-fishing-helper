@@ -1,0 +1,14 @@
+{
+  "model": "weights/yolo11n.pt",
+  "epochs": 50,
+  "imgsz": 960,
+  "batch": 8,
+  "device": "cpu",
+  "workers": 0,
+  "seed": 42,
+  "deterministic": true,
+  "amp": false,
+  "optimizer": "AdamW",
+  "lr0": 0.001,
+  "patience": 15
+}

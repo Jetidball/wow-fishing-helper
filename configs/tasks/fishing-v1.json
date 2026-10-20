@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "task_id": "fishing_bobber",
+  "profile_version": 1,
+  "model": {
+    "backend": "template",
+    "templates": "../../images",
+    "release": "active",
+    "device": "cpu",
+    "imgsz": 960
+  },
+  "allowed_classes": [
+    "bobber",
+    "loot"
+  ],
+  "target_class": "bobber",
+  "allowed_windows": [
+    {
+      "title": "World of Warcraft*",
+      "executables": [
+        "Wow.exe",
+        "WowClassic.exe"
+      ]
+    }
+  ],
+  "click_anchor": [
+    0.5,
+    0.5
+  ],
+  "confidence": 0.7,
+  "review_below": 0.9,
+  "max_frame_age": 0.5,
+  "outcome": {
+    "kind": "visible_class",
+    "value": "loot",
+    "timeout_seconds": 3
+  },
+  "promotion": {
+    "min_precision": 0.95,
+    "min_recall": 0.9,
+    "max_false_per_cast": 0.1
+  }
+}

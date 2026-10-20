@@ -15,3 +15,11 @@ dist/
 src/config/config.json
 
 data/mouse-verification/
+
+.venv-ml/
+datasets/
+runs/
+previews/
+weights/
+
+data/

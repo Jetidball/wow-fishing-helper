@@ -48,7 +48,7 @@ def exported_dataset(root):
         lines = [line.split() for line in label.read_text().splitlines() if line.strip()]
         expected = []
         for b in row["annotation"]["boxes"]:
-            expected.append([0, (b["x"]+b["width"]/2)/row["width"], (b["y"]+b["height"]/2)/row["height"], b["width"]/row["width"], b["height"]/row["height"]])
+            expected.append([b["class_id"], (b["x"]+b["width"]/2)/row["width"], (b["y"]+b["height"]/2)/row["height"], b["width"]/row["width"], b["height"]/row["height"]])
         if len(lines) != len(expected): raise ValueError("YOLO labels disagree with manifest")
         for line, wanted in zip(lines, expected):
             values = [float(v) for v in line]
@@ -113,7 +113,7 @@ def train(dataset, output, config, *, allow_download=False, model_factory=None):
         for split in ("train","val"):
             (output/(split+".txt")).write_text("\n".join(str(image_path(dataset,r["image"])) for r in by_split[split])+"\n")
         # Generate a train/val-only config; never trust arbitrary data.yaml paths or expose test to fitting.
-        (output/"data.yaml").write_text(f"train: {json.dumps(str(output/'train.txt'))}\nval: {json.dumps(str(output/'val.txt'))}\nnames:\n  0: bobber\n")
+        (output/"data.yaml").write_text(f"train: {json.dumps(str(output/'train.txt'))}\nval: {json.dumps(str(output/'val.txt'))}\nnames: {json.dumps(data['classes'])}\n")
         kwargs = asdict(config); kwargs.pop("model")
         kwargs.update(data=str(output/"data.yaml"), project=str(output), name="fit", exist_ok=False,
                       pretrained=True, plots=True, save=True, verbose=False)

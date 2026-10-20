@@ -173,3 +173,7 @@ The application now defaults to dry-run input. See [fishing states and labeled s
 ## Guarded coordinate and mouse lab
 
 See [explicit transforms and local mouse verification](docs/MOUSE_VERIFICATION.md) for letterboxing, DPI, window invalidation, action gates and separate movement/single-click tests. This adapter is not integrated into continuous fishing.
+
+## Versioned task profiles and reviewed models
+
+See [task profiles and the record-label-train-evaluate-preview workflow](docs/TASK_PROFILES.md) for per-task models, allowed classes/windows, click anchors, freshness/outcomes, uncertain review queues and explicit model promotion/rollback. The local confirmation-button demo uses simulated input only.

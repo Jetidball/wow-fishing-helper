@@ -13,6 +13,7 @@ from visual_targeting.windows_mouse import WindowsMouse
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile",type=Path,help="run a second-task profile demo with simulated mouse input only")
     parser.add_argument("--mode",choices=("dry-run","move","single-click"),default="dry-run")
     parser.add_argument("--verify",action="store_true",help="run one bounded test against this window, then exit")
     parser.add_argument("--manual",action="store_true",help="wait for a user press of Run instead of automatically starting verification")
@@ -21,6 +22,12 @@ def main():
     args=parser.parse_args()
     if not 2<=args.timeout<=300:parser.error("timeout must be between 2 and 300 seconds")
     if args.output and args.output.exists():parser.error("output already exists")
+    if args.profile:
+        if args.mode!="dry-run" or args.output is None:parser.error("profile demo requires dry-run mode and an output directory")
+        from visual_targeting.profiles import Profile
+        from visual_targeting.local_demo import run_demo
+        print(json.dumps(run_demo(Profile.read(args.profile),args.output,show=True,verify=args.verify)))
+        return
     api=WindowsMouse()
     # Create the entire Tk window within a PMv2 thread context.
     with api.dpi_scope():

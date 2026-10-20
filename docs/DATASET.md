@@ -127,3 +127,7 @@ is running before removing a stale lock. Manifest writes happen after every PNG;
 an abrupt process kill between PNG and manifest writes can leave an unreferenced
 PNG, which is never exported automatically. Keep source recordings immutable after
 labeling; collect/review representative sessions before training anything.
+
+## Task-specific datasets
+
+The version-1 manifest also supports an ordered task-specific class vocabulary. Legacy recording defaults to `["bobber"]`; existing files do not change. Use the [task workflow](TASK_PROFILES.md) to record profile/window metadata, explicitly attribute human reviews and preserve class IDs in generic YOLO exports. Profile training rejects missing human provenance or task/class mismatches.

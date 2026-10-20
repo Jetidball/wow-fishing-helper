@@ -55,12 +55,14 @@ def main(argv=None):
     args=parser.parse_args(argv)
     try:
         if args.command=="train":
+            if exported_dataset(args.dataset)["classes"]!=["bobber"]:raise ValueError("legacy model CLI is bobber-only; use tools/task.py for task profiles")
             best=train(args.dataset,args.output,TrainConfig.read(args.config),allow_download=args.allow_download)
             print(json.dumps({"checkpoint":str(best),"live_input_enabled":False}));return
         if args.template_count<=0 or not 0<=args.template_threshold<=1 or args.imgsz<=0:
             raise ValueError("invalid template count/threshold or image size")
         if not 0<=args.score_floor<=args.confidence<=1:raise ValueError("require 0 <= score-floor <= confidence <= 1")
         data=exported_dataset(args.dataset)
+        if data["classes"]!=["bobber"]:raise ValueError("legacy model CLI is bobber-only; use tools/task.py for task profiles")
         backends={};sources=[];errors={};provenance=None
         if args.training_run:
             provenance=json.loads((args.training_run/"run.json").read_text())

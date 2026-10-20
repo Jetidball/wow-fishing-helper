@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task_id": "local_confirm",
+  "profile_version": 1,
+  "profile_sha256": "a73e1e8b17d17d355919302790a186014bdf6269a0245f79aebacf59c1dc7597",
+  "detector_interface": "detect(Frame) -> Detection | None",
+  "mouse_interface": "GuardedMouse.execute(Target, kind)",
+  "model_artifact_sha256": "4f9301002c87b54a5ea27b4fec247f5a1f3462ed30ee92cd481e2a08f41c5dda",
+  "model_source": "author-defined synthetic app fixture, not a promoted model",
+  "click_anchor": [
+    0.6,
+    0.5
+  ],
+  "desktop_point": [
+    -339,
+    340
+  ],
+  "crop_point": [
+    461,
+    240
+  ],
+  "simulated_clicks": 1,
+  "outcome": "confirmed",
+  "passed": true,
+  "live_input_enabled": false,
+  "mouse_backend": "local_simulated",
+  "registry_modified": false,
+  "training_data_created": false,
+  "source_sha256": {
+    "local_demo.py": "162e94c8addd3eb492dd1f69c34235e8306de391d7612f9d3494f9bee386cd99",
+    "profiles.py": "2e036477c1b0996bd2c9b4e374f43b072ed01090c2b1be7023fe31888b540c97",
+    "detector.py": "f2be70a391523cdb8bc9bf3aead17c45e0f08fc2c86615277e746ebe4fbb6f5a",
+    "guarded_mouse.py": "3e0760ab57d5607efa5aeb91b8e01c6719f7567667d1c066417b86a372fc5298"
+  }
+}

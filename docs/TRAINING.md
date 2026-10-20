@@ -148,3 +148,7 @@ future live read-only replay/telemetry measurement is required for deployment ag
 All output directories must be fresh and outside the dataset. No real training,
 GPU result or accuracy improvement is implied by passing the synthetic tests.
 Live input remains disabled; model promotion requires a separate explicit change.
+
+## Task-scoped workflows
+
+The legacy model CLI is bobber-only. For other task vocabularies and explicit model promotion/rollback, use [TASK_PROFILES.md](TASK_PROFILES.md). Training, evaluation and preview never activate weights.
