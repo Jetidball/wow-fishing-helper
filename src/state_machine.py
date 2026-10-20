@@ -1,6 +1,9 @@
 import time, sys, os
 from visual_targeting.input import desktop as pag, Cancelled, DryRunInput
-from bob_finder import search_and_destroy, CAUGHT, NO_BITE, ABORTED
+from bob_finder import NO_BITE, ABORTED
+from fishing.task import FishingTask
+from visual_targeting.detector import TemplateDetector
+from visual_targeting.contracts import Frame, Box
 from setup import initialize, get_single_loc
 from clicker import bait
 from settings import Settings
@@ -19,6 +22,9 @@ loot = None
 ui_is_hidden = True
 time_attached = 0
 cast_time = 0
+precast = None
+live_input_enabled = False
+loot_visible_precast = False
 
 def init():
   logger.info("Initializing")
@@ -75,8 +81,22 @@ def pre_cast():
   move_state(cast)
 
 def cast():
-  global cast_time
+  global cast_time, precast, loot_visible_precast
   sleep_range(config, config.cast_delay)
+  # Observe existing bobbers before casting, so another player's float is excluded.
+  from mss import mss
+  import numpy as np
+  detector = TemplateDetector(config.templates, config.match_threshold, config.canny_thresholds)
+  try:
+    loot_visible_precast = bool(loot.enabled() and loot.occupied_slots(loot.grab()))
+    with mss() as capture:
+      frame = Frame(0, time.monotonic(), np.array(capture.grab(config.get_monitor())), Box(**config.get_monitor()), "bgra")
+      precast = detector.candidates(frame)
+  except Exception as exc:
+    logger.warning("Cannot establish pre-cast ownership: {}", exc)
+    precast = None
+    move_state(attach_bait)
+    return
   move_to(config, config.cast_location)
   pag.click()
   cast_time = time.monotonic()
@@ -85,7 +105,13 @@ def cast():
 
 def find_hover_wait():
   sleep_range(config, config.splash_search_delay)
-  result = search_and_destroy(config)
+  def catch_check():
+    # Independent visual loot evidence, never infer a catch from clicking/disappearance.
+    return bool(not loot_visible_precast and loot.enabled() and loot.occupied_slots(loot.grab()))
+  task = FishingTask(config, precast=precast, live_input=live_input_enabled,
+                     bite_backend=getattr(config, "bite_backend", "temporal"), catch_check=catch_check, cancelled=pag.cancelled, cast_started=cast_time)
+  result = task.run()
+  logger.info("Fishing outcome: {}", result)
   if result == ABORTED:
     move_state(attach_bait)
     return
@@ -93,8 +119,8 @@ def find_hover_wait():
   st = stats.snapshot()
   logger.info(f"Catch rate {100 * st['catch_rate']:.0f}% (n={st['casts']}), "
               f"last {st['recent_n']}: {100 * st['recent_catch_rate']:.0f}%")
-  safety.record_cast(config, result != NO_BITE)
-  move_state(loot_fish if result == CAUGHT else attach_bait)
+  safety.record_cast(config, result in ("catch_confirmed", "click_unconfirmed"))
+  move_state(loot_fish if result == "catch_confirmed" else attach_bait)
 
 def click_loot(points):
   # bottom slot first, so it doesn't matter if the slots below shift up after one is taken
@@ -120,7 +146,11 @@ def loot_fish():
   move_state(attach_bait)
 
 if __name__ == "__main__":
-  if "--dry-run" in sys.argv:
+  live_input_enabled = "--live-input" in sys.argv and "--dry-run" not in sys.argv
+  if live_input_enabled:
+    from visual_targeting.input import WindowsInput
+    pag.configure(WindowsInput())
+  else:
     pag.configure(DryRunInput())
   config.load()
   if "--no-gui" not in sys.argv:

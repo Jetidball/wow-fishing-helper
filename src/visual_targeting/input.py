@@ -107,7 +107,7 @@ class DesktopFacade:
     @property
     def adapter(self):
         if self._adapter is None:
-            cls = DryRunInput if os.environ.get("FISHING_DRY_RUN") == "1" else WindowsInput
+            cls = WindowsInput if os.environ.get("FISHING_LIVE_INPUT") == "1" and os.environ.get("FISHING_DRY_RUN") != "1" else DryRunInput
             self._adapter = cls(cancelled=self.cancelled)
         return self._adapter
 

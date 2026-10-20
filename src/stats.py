@@ -9,6 +9,7 @@ class Stats():
     self.casts = 0
     self.bites = 0
     self.catches = 0
+    self.clicks_issued = 0
     self.recent = deque(maxlen=max(1, int(window)))   # (caught, seconds from cast to result)
     self.catch_times = deque(maxlen=max(2, int(window)))
     self.items = Counter()
@@ -18,9 +19,11 @@ class Stats():
     # result is one of bob_finder's CAUGHT / MISSED / NO_BITE
     with self.lock:
       self.casts += 1
-      if result != "no_bite":
+      if result in ("click_issued", "catch_confirmed", "click_unconfirmed", "missed"):
         self.bites += 1
-      caught = result == "caught"
+      if result in ("click_issued", "catch_confirmed", "click_unconfirmed"):
+        self.clicks_issued += 1
+      caught = result == "catch_confirmed"
       if caught:
         self.catches += 1
         self.catch_times.append(time.time())
@@ -46,6 +49,7 @@ class Stats():
         "casts": self.casts,
         "bites": self.bites,
         "catches": self.catches,
+        "clicks_issued": self.clicks_issued,
         "catch_rate": self.catches / self.casts if self.casts else None,
         "recent_catch_rate": recent_rate,
         "recent_n": len(self.recent),

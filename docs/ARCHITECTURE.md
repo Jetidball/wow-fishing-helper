@@ -61,3 +61,5 @@ requires `mss` and `loguru`; reusable perception needs only NumPy/OpenCV. The GU
 loot/OCR, session and safety shell remain application modules, not reusable core.
 GUI close/pause, real screen capture and Windows key delivery require manual smoke
 testing; unit tests never send actual input. No labeled game dataset is bundled.
+
+The bounded fishing task and default dry-run behavior are described in [FISHING_SEQUENCE.md](FISHING_SEQUENCE.md). Live input requires explicit opt-in.

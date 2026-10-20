@@ -52,3 +52,28 @@ class TemplateDetector:
             return None
         return Detection(frame.sequence, frame.captured_at, self.clock(), Box(**match["box"]),
                          Point(*match["center"]), match["value"])
+
+    def candidates(self, frame, limit=32):
+        """Multiple distinct screen boxes for ambiguity-aware tracking (NMS across templates)."""
+        gray=frame.pixels if frame.format=="gray" else cv.cvtColor(frame.pixels,cv.COLOR_BGRA2GRAY if frame.format=="bgra" else cv.COLOR_BGR2GRAY)
+        edges=cv.Canny(gray,*self.canny_thresholds)
+        proposals=[]
+        for template in self.templates:
+            if not isinstance(template,np.ndarray) or template.ndim!=2 or not template.size or template.dtype!=np.uint8 or np.ptp(template)==0 or template.shape[0]>edges.shape[0] or template.shape[1]>edges.shape[1]:continue
+            scores=cv.matchTemplate(edges,template,METHOD)
+            h,w=template.shape
+            for _ in range(128):
+                _,score,_,(x,y)=cv.minMaxLoc(scores)
+                if not np.isfinite(score) or score<self.match_threshold:break
+                proposals.append((score,[x,y,x+w,y+h]))
+                scores[max(0,y-h//2):y+h//2+1,max(0,x-w//2):x+w//2+1]=-1
+        kept=[]
+        for score,b in sorted(proposals,key=lambda p:-p[0]):
+            duplicate=False
+            for a in kept:
+                overlap=max(0,min(a[2],b[2])-max(a[0],b[0]))*max(0,min(a[3],b[3])-max(a[1],b[1]))
+                union=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-overlap
+                if overlap/union>.3:duplicate=True;break
+            if not duplicate:kept.append(b)
+            if len(kept)>=limit:break
+        return [[x1+frame.bounds.left,y1+frame.bounds.top,x2+frame.bounds.left,y2+frame.bounds.top] for x1,y1,x2,y2 in kept]

@@ -38,6 +38,7 @@ class Settings():
     self.hearthstone_location = None
     self.auto_loot = False
     self.img_dir = "../images"
+    self.bite_backend = "temporal"  # temporal evidence, or baseline absolute white pixels
     self.match_threshold = 0.7  # minimum normalized template confidence, 0..1
     self.splash_threshold_whitepx = 25
     self.canny_thresholds = [80, 180]
@@ -102,6 +103,7 @@ class Settings():
     self.templates = []
 
   def apply(self, data):
+    self.bite_backend = data.get("biteBackend", self.bite_backend)
     self.match_threshold = float(data.get("matchThreshold", self.match_threshold))
     self.attach_bait = data.get("attachBait", self.attach_bait)
     self.num_bait = data.get("numBait", self.num_bait)
@@ -183,6 +185,7 @@ class Settings():
 
   def to_dict(self):
     return {
+      "biteBackend": self.bite_backend,
       "matchThreshold": self.match_threshold,
       "attachBait": self.attach_bait,
       "numBait": self.num_bait,

@@ -13,7 +13,8 @@ from visual_targeting.detector import TemplateDetector, get_updated_bobber_loc
 from .splash import is_splash_whitepx
 
 # search_and_destroy results
-CAUGHT = "caught"      # clicked the bobber after a splash
+CLICK_ISSUED = "click_issued"
+CAUGHT = CLICK_ISSUED  # deprecated compatibility name; never means catch-confirmed
 MISSED = "missed"      # saw the splash but reacted too late on purpose
 NO_BITE = "no_bite"    # no splash before the cast timed out
 ABORTED = "aborted"    # paused or quit mid cast
@@ -106,13 +107,76 @@ def search_and_destroy(settings, *, capture_factory=None, mouse=None, move=None,
 
 
 class FishingTask:
-  """One cancellable cast observation, with replaceable detector and injected IO.
+  """Bounded tracker runner. No movement/input imports unless explicitly enabled.
 
-  Configuration remains owned by the existing Settings/GUI application. Capture,
-  movement, reaction timing and safety can be injected for deterministic replay.
+  Pre-cast candidates are required. catch_check must provide independent loot/game
+  evidence; disappearance alone never confirms a catch.
   """
-  def __init__(self, settings, detector=None, **io):
-    self.settings, self.detector, self.io = settings, detector, io
+  def __init__(self, settings, detector=None, *, precast=None, live_input=False, policy=None,
+               bite_backend="temporal", catch_check=None, **io):
+    self.settings,self.detector,self.io=settings,detector,io
+    self.precast,self.live_input,self.policy=precast,live_input,policy
+    self.bite_backend,self.catch_check=bite_backend,catch_check
+    self.machine=None
 
   def run(self):
-    return search_and_destroy(self.settings, detector=self.detector, **self.io)
+    from .sequence import CastTask, Policy, State
+    settings=self.settings
+    clock=self.io.get("clock",time.monotonic)
+    guard=self.io.get("guard")
+    if guard is None:
+      import safety as guard
+    stop=self.io.get("cancelled")
+    def stopped():
+      return bool((stop is not None and stop.is_set()) or guard.paused.is_set() or guard.check_and_pause(settings))
+    if stopped():return ABORTED
+    started=self.io.get("cast_started")
+    self.machine=CastTask(clock() if started is None else started,self.precast,self.policy or Policy(cast_seconds=settings.cast_timeout,
+                          white_threshold=settings.splash_threshold_whitepx),self.bite_backend)
+    if self.machine.outcome:return self.machine.outcome
+    factory=self.io.get("capture_factory",mss)
+    detector=self.detector or TemplateDetector(settings.templates,getattr(settings,"match_threshold",.7),settings.canny_thresholds,clock)
+    if not hasattr(detector,"candidates"):raise ValueError("tracked task requires a multi-candidate detector")
+    wait=self.io.get("wait_key",cv.waitKey)
+    monitor=settings.get_monitor();sequence=0
+    try:
+      with factory() as capture:
+        while self.machine.state!=State.DONE:
+          cancelled=stopped() or wait(25)&0xff in (27,ord("q"))
+          now=clock()
+          if cancelled:self.machine.finish("aborted");break
+          try:
+            frame=Frame(sequence,now,np.array(capture.grab(monitor)),Box(**monitor),"bgra")
+          except MSSException.ScreenShotError:
+            self.machine.update(None,[],now)  # deadlines advance without old pixels
+            continue
+          sequence+=1
+          confirmed=False
+          if self.machine.click_issued and self.catch_check:
+            try: confirmed=bool(self.catch_check())
+            except MSSException.ScreenShotError: pass
+          prior=self.machine.state
+          action=self.machine.update(frame,detector.candidates(frame),clock(),catch_confirmed=confirmed)
+          if self.machine.state!=prior:
+            logger.info("Fishing state {} -> {}: {}",prior.value,self.machine.state.value,self.machine.reason)
+          if action:
+            if not self.live_input:
+              self.machine.finish("click_proposed")
+              break
+            # Explicit opt-in only; recheck cancellation and frame age immediately before input.
+            if stopped() or clock()-frame.captured_at>self.machine.p.max_frame_age:
+              self.machine.finish("aborted");break
+            mouse=self.io.get("mouse")
+            move=self.io.get("move")
+            if mouse is None:
+              from visual_targeting.input import desktop as mouse
+            if move is None:
+              from humanize import move_to as move
+            move(settings,action["point"],use_jitter=False)
+            if stopped() or clock()-frame.captured_at>self.machine.p.max_frame_age:
+              self.machine.finish("aborted");break
+            accepted=mouse.rightClick()
+            self.machine.acknowledge_click(accepted is not False,clock())
+    finally:
+      cv.destroyAllWindows()
+    return self.machine.outcome

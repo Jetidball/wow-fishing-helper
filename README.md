@@ -165,3 +165,7 @@ The dataset commands do not load input adapters and cannot click or cast.
 
 See [pretrained training, held-out evaluation and CPU/GPU benchmarks](docs/TRAINING.md).
 These commands never enable live input.
+
+## Bounded fishing and safe default
+
+The application now defaults to dry-run input. See [fishing states and labeled sequence replay](docs/FISHING_SEQUENCE.md) for pre-cast ownership, ambiguity handling, temporal bites, click/catch outcomes, and explicit live opt-in.
