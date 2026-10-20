@@ -22,27 +22,19 @@ def countdown(secs, status=logger.info):
     secs = secs - 1
 
 def get_single_loc(name, status=logger.info):
-  status("Point to location of %s for 1 sec in..." % name)
-  countdown(3, status)
-  status("Hold the cursor still over the %s..." % name)
-  last_point = (0,0)
-  start_time = time.time()
-  while True:
-    x, y = pag.position()
-    if last_point == (x,y):
-      if time.time() - start_time > 1:
-        status(f"Location of {name} at {x}, {y}")
-        return (x, y)
-    else:
-      start_time = time.time()
-    pag.sleep(0.05)
-    last_point = (x, y)
+  from visual_targeting.area_picker import request_desktop_area
+  status(f"Show {name} in the game. Screenshot in 5 seconds; click the location on the frozen picture.")
+  countdown(5, status)
+  value = request_desktop_area(name, cancelled=pag.cancelled, point=True)
+  if value is None:
+    raise Cancelled("Location selection cancelled")
+  return value
+
 
 def get_pole_loc(status=logger.info):
-  pag.typewrite('c')
-  l = get_single_loc('fishing pole', status)
-  pag.typewrite('c')
-  return l
+  status("Open the character panel manually so the fishing pole is visible.")
+  return get_single_loc("fishing pole (character panel)", status)
+
 
 def get_box(name, status=logger.info):
   from visual_targeting.area_picker import request_desktop_area

@@ -362,8 +362,8 @@ class App():
   def setup_tab(self, nb):
     p = self.page(nb)
     self.section(p, 0, "Screen locations")
-    self.note(p, 1, "Pick minimizes this window. Hold the cursor still over the spot for 1 second after the 3 second countdown. "
-                    "Anything left unset is asked for when the bot starts.")
+    self.note(p, 1, "Pick takes a screenshot after 5 seconds. Click a location or drag an area on the frozen picture. "
+                    "For bait or pole, open the bags or character panel during the countdown. Save after selecting.")
     rows = [("cast_location", "Fishing ability (action bar)"), ("loot_location", "Loot window item"),
             ("bait_location", "Bait in bags"), ("pole_location", "Fishing pole (character panel)"),
             ("hearthstone_location", "Hearthstone (action bar)"), ("area_of_interest", "Area of interest (water)")]
@@ -495,7 +495,7 @@ class App():
         continue
 
   def close(self):
-    for timer in (getattr(self, "poll_timer", None), getattr(self, "setup_timer", None)):
+    for timer in (getattr(self, "poll_timer", None), getattr(self, "setup_timer", None), getattr(self, "pick_timer", None)):
       if timer:
         try: self.root.after_cancel(timer)
         except tk.TclError: pass
@@ -546,47 +546,34 @@ class App():
     self.show_loc(attr)
 
   def pick(self, attr, label):
-    if self.busy:
-      return
-    if attr == "area_of_interest" or attr in BOX_ATTRS:
-      self.busy = True
-      self.root.iconify()
-      self.status.set("Screenshot in 3 seconds. Show the game; then select a rectangle on the frozen picture.")
-      def finish(value):
-        self.busy = False
-        self.root.deiconify()
-        if value is not None:
-          setattr(self.s, attr, value)
-          self.show_loc(attr)
-          self.status.set("Area selected. Save settings to keep it; reselect after moving/resizing the game.")
-        else:
-          self.status.set("Area selection cancelled; previous setting kept.")
-      def select():
-        try:
-          from visual_targeting.area_picker import pick_desktop_area
-          pick_desktop_area(self.root, label, finish, polygon=attr == "area_of_interest")
-        except Exception as exc:
-          finish(None)
-          self.status.set(f"Area capture failed: {exc}")
-      self.root.after(3000, select)
-      return
+    if self.busy:return
     self.busy = True
+    self.targeting_panel.stop()
+    point = attr != "area_of_interest" and attr not in BOX_ATTRS
     self.root.iconify()
-    status = lambda msg: self.post_event(("status", msg))
-
-    def work():
-      focus_wow_window()
-      time.sleep(0.3)
-      if attr == "area_of_interest":
-        value = get_area_of_interest(status)
-      elif attr in BOX_ATTRS:
-        value = get_box(label.lower(), status)
-      elif attr == "pole_location":
-        value = get_pole_loc(status)
+    instruction = "click the location" if point else "drag a rectangle"
+    self.status.set(f"Screenshot in 5 seconds. Show the game, then {instruction} on the frozen picture.")
+    def finish(value):
+      if self.closed.is_set():return
+      self.busy = False
+      self.root.deiconify()
+      if value is not None:
+        setattr(self.s, attr, value)
+        self.show_loc(attr)
+        self.refresh_ready()
+        self.status.set("Selection accepted. Click Save to keep it. Redo after moving/resizing the game.")
       else:
-        value = get_single_loc(label.lower(), status)
-      self.post_event(("picked", (attr, value)))
-    threading.Thread(target=work, daemon=True).start()
+        self.status.set("Selection cancelled; previous setting kept.")
+    def select():
+      self.pick_timer = None
+      if self.closed.is_set():return
+      try:
+        from visual_targeting.area_picker import pick_desktop_area
+        pick_desktop_area(self.root, label, finish, polygon=attr == "area_of_interest", point=point)
+      except Exception as exc:
+        finish(None)
+        self.status.set(f"Screen selection failed: {exc}")
+    self.pick_timer = self.root.after(5000, select)
 
   # ---------- images ----------
 
