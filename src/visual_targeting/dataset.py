@@ -89,7 +89,7 @@ def boxes_valid(boxes, width, height, classes=CLASS_NAMES):
         if x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > width or y + h > height:
             raise ValueError("box must have positive area entirely inside the saved image")
 
-def validate(root, data=None):
+def validate(root, data=None, *, images=None):
     if data is None and not (Path(root) / "manifest.json").is_file():
         raise ValueError("dataset manifest does not exist")
     data = load(root) if data is None else data
@@ -143,6 +143,7 @@ def validate(root, data=None):
         image = cv.imdecode(np.frombuffer(payload, np.uint8), cv.IMREAD_UNCHANGED)
         if image is None or image.shape != (h, w, 3) or image.dtype != np.uint8:
             raise ValueError("image must be a color uint8 PNG matching manifest dimensions")
+        if images is not None:images[frame_id]=image
     return data
 
 def record(root, session_id, cast_id, region, *, fps=5, duration=60, max_frames=600,

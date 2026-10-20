@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Use your trained bobber model</title>
+<style>body{margin:0;background:#122033;color:#edf3ff;font:18px/1.6 system-ui}main{max-width:980px;margin:30px auto;padding:24px}section{background:#20314a;border-radius:14px;padding:25px;margin:20px 0}h1,h2{line-height:1.2}code{color:#b1d9ff;overflow-wrap:anywhere}a{color:#8ee6cb}.note{border-left:5px solid #f2c66d;padding-left:16px}th,td{padding:12px;text-align:left;border-bottom:1px solid #526882}table{border-collapse:collapse;width:100%}</style>
+<main><h1>Your model is trained. Here is how to try it.</h1>
+<p>Close the helper and reopen <b>Start Fishing.cmd</b>. Normal fishing remains available with the original template detector. No model is switched on automatically.</p>
+<section><h2>What the three modes do</h2><table><tr><th>Mode</th><th>What happens</th></tr><tr><td>Neural candidate preview</td><td>Shows the detected bobber and proposed mouse point. Does not move or click. Works before model approval.</td></tr><tr><td>Evaluated movement-only test</td><td>One explicitly armed move to the point. Never clicks. Requires a matching completed independent test report, but can test a model that has not passed automatic-fishing quality thresholds.</td></tr><tr><td>Automatic neural fishing</td><td>Uses the approved neural detector in your original fishing loop. Acquires your new bobber, optionally hovers, waits for bite evidence, then issues one guarded right-click. Requires explicit approval and live-controls opt-in.</td></tr></table></section>
+<section><h2>1. See what the neural network detects</h2><ol>
+<li>Open <b>Visual targeting</b>.</li>
+<li>Click <b>Preview latest trained model (no input)</b>. The helper fills the trained .pt and profile paths, and reuses your normal fishing area when opened through Start Fishing.cmd. If more than one allowed game window exists, select your game and press the preview button again.</li>
+<li>Bring WoW to the front and manually cast.</li>
+<li>Watch the helper's picture for the cross on your bobber. On one monitor, Alt-Tab back to inspect the last picture. Capture pauses while the helper is foreground; this is expected. On two monitors you can keep the helper visible while WoW remains foreground.</li>
+<li>Check that the cross is on the float, not a reflection, another player's float or UI. Multiple qualifying bobbers cause abstention.</li>
+<li>Use <b>Pause / Stop</b> when done.</li></ol>
+<p>This button loads the candidate explicitly for preview. The ordinary Start preview button uses the configured profile/approved registry instead.</p></section>
+<section><h2>2. Let it move once, without clicking</h2><ol>
+<li>In Visual targeting click <b>Set up movement-only test</b>. A matching completed held-out evaluation is required.</li>
+<li>Focus WoW and let the preview show the bobber at the correct point. It must be one unambiguous fresh detection.</li>
+<li>Return to the helper and click <b>Arm ONE attempt (3s)</b>.</li>
+<li>Switch to WoW within three seconds, release the mouse buttons and stop moving the mouse briefly.</li>
+<li>The helper attempts one move. It cannot click in this mode. Check whether your cursor becomes the gear over the bobber.</li>
+<li>Read Last attempt in the helper. Focus loss, stale pixels, moved/resized windows, held buttons, occlusion or user takeover reject the action. Re-arm only after correcting the reason.</li></ol>
+<p>Keep WoW on one monitor for the test. The system translates model boxes to the captured game crop and then physical desktop coordinates. It rechecks window geometry and actual mouse position; it does not apply the letterbox offset twice.</p></section>
+<section><h2>3. Understand and optionally calibrate the gear</h2>
+<p><b>The gear is a useful sign that the cursor is over an interactable object.</b> It does not prove that a fish bit, and other interactable objects can also produce a gear. The tracker must still identify your newly cast bobber and observe a splash/bite before clicking.</p><ol>
+<li>Open <b>Normal fishing → Locations & Fishing</b>, then scroll down to <b>Detector and mouse placement</b>.</li>
+<li>Click <b>Use latest trained model paths</b> to fill in the candidate and matching profile.</li>
+<li>For optional cursor confirmation, click <b>1. Capture normal cursor (5s)</b>, switch to WoW and hover empty water until the normal cursor is visible.</li>
+<li>Click <b>2. Capture gear cursor (5s)</b>, switch to WoW and hover your bobber until the gear is visible. Do not click.</li>
+<li>Check the calibration result. The two shapes must differ and be observed in the allowed game window.</li>
+<li>Turn on <b>Require the calibrated gear cursor before a bite click</b> if you want this extra condition. The helper skips a click if it cannot verify the calibrated gear.</li></ol>
+<p>Calibration lasts for this helper session. Recalibrate after relaunching the helper or game. If the game draws a software-only cursor that Windows reports as hidden, this calibration is unavailable; leave the optional gear requirement off. You can still inspect the gear manually during the movement-only test.</p></section>
+<section><h2>4. Read the evaluation before enabling automatic neural fishing</h2><p>After each new training run, click <b>Evaluate latest trained model (automatic paths)</b> in Neural training and wait for completion. Then click <b>Review evaluation / approve model</b> in Visual targeting. It shows precision, recall, false detections per cast, and the configured thresholds. If the exact model passes, the button asks you to explicitly approve it. Training and preview never approve weights.</p>
+<p class="note"><b>Current result at implementation:</b> your latest model was tested on 95 independent test frames. Precision was 97.1%, recall 68.4%, and the report counted two false detections in the test cast. The profile requires at least 95% precision, 90% recall and at most 0.1 false detections/cast. It therefore is <b>not approved for automatic fishing yet</b>. Candidate preview and the explicitly armed movement-only test are available now. The application reads the latest matching report; these displayed values may change after retraining/re-evaluation.</p>
+<p>To improve it, collect new independent examples resembling missed cases, review small bobbers and reflections consistently, and run a longer training configuration. Keep held-out frames out of training; do not copy test images into the training partition. Evaluate the resulting new best.pt with its own run metadata before approval. More training is not a guarantee of passing.</p></section>
+<section><h2>5. Turn on neural automatic fishing after approval</h2><ol>
+<li>Open <b>Normal fishing → Locations & Fishing</b>.</li>
+<li>Under Find bobbers using, choose <b>Neural network (approved model for live)</b>.</li>
+<li>Click <b>Use latest trained model paths</b>. They must match the model you evaluated and approved. Live inference uses the immutable approved registry artifact, not an arbitrary unchecked .pt.</li>
+<li>Enable <b>Move onto a uniquely tracked bobber while waiting for the bite</b> if you want the pointer to hover as soon as ownership is established.</li>
+<li>Optionally calibrate and require the gear as described above. Save your settings.</li>
+<li>Return to Normal fishing → Start, check <b>Enable live game controls</b>, then click <b>Start fishing</b>.</li>
+<li>The normal loop casts, excludes pre-existing floats, confirms a unique new bobber across fresh frames, hovers if enabled, waits for temporal bite evidence, then moves to a fresh point and right-clicks once. Independent loot evidence is needed to record a confirmed catch.</li>
+<li><b>F9</b> pauses/resumes the fishing loop. <b>Esc</b> stops it. Pause / Stop controls the separate targeting preview.</li></ol>
+<p>To return to the original detector, select <b>Template matching (original)</b>. An unapproved neural model cannot be used for automatic input; selecting the checkbox does not bypass evaluation. Leave live controls unchecked for dry-run decisions only; dry-run does not cast for you.</p></section>
+<section><h2>If it does not move</h2><ul>
+<li><b>Missing or ambiguous:</b> keep one bobber in the test view and inspect the detection cross. The model may miss small/low-confidence targets.</li>
+<li><b>Not foreground:</b> put WoW in front during the arming countdown.</li>
+<li><b>Invalid transform / area outside game:</b> repeat the window/area selection after moving or resizing WoW or changing UI scale.</li>
+<li><b>Stale / processing stale:</b> let the model finish its initial warmup; inspect processing time. Old detections are never dispatched.</li>
+<li><b>Gear not confirmed:</b> repeat both calibrations in the same game session, or turn off the optional requirement.</li>
+<li><b>No promoted model / quality thresholds not met:</b> use candidate preview or movement-only testing while improving and evaluating the detector.</li>
+<li><b>Acquisition expired:</b> inspect <code>data/fishing-debug/acquisition-latest.json</code> and its ROI picture. The log distinguishes missing, ambiguous, pre-existing and stale targets.</li></ul>
+<p>The last trained model is shown on Neural training; Open trained model folder takes you to best.pt. A .whl is only the application package.</p></section>
+<p><a href="TRAINING-GUI.html">Training instructions</a> · <a href="../START HERE.html">Application start guide</a></p>
+<p><small>Cursor identity uses Windows' read-only <a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getcursorinfo">GetCursorInfo</a> API. No custom driver or game-memory access is used.</small></p>
+</main></html>

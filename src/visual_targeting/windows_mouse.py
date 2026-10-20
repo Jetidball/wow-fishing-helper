@@ -71,11 +71,13 @@ class WindowsMouse:
     def move(self,x,y):
         with self.dpi_scope():
             if not self.user.SetCursorPos(x,y):raise c.WinError(c.get_last_error())
-    def click(self):
+    def click(self,button="left"):
+        if button not in ("left","right"):raise ValueError("unsupported mouse button")
         def event(flags):return INPUT(0,INPUTUNION(mi=MOUSEINPUT(0,0,0,flags,0,0)))
-        pair=(INPUT*2)(event(2),event(4))  # left down/up, one SendInput call
+        down,up_flag=(2,4) if button=="left" else (8,16)
+        pair=(INPUT*2)(event(down),event(up_flag))  # one complete click pair
         sent=self.user.SendInput(2,pair,c.sizeof(INPUT))
         if sent!=2:
             # Release a partially delivered press; never resend the down event.
-            up=(INPUT*1)(event(4));self.user.SendInput(1,up,c.sizeof(INPUT))
+            up=(INPUT*1)(event(up_flag));self.user.SendInput(1,up,c.sizeof(INPUT))
             raise OSError("SendInput did not deliver the complete click pair")

@@ -89,7 +89,7 @@ class TaskNeuralDetector:
         self.names=dict(enumerate(names)) if isinstance(names,list) else names
         if set(self.names.values())!=set(profile.data["allowed_classes"]):raise ValueError("model classes disagree with task profile")
         self.artifact_sha256=hashlib.sha256(Path(weights).read_bytes()).hexdigest()
-    def detect(self,frame):
+    def detections(self,frame):
         import time
         import numpy as np
         m=self.profile.data["model"]
@@ -107,7 +107,14 @@ class TaskNeuralDetector:
             left,top=math.floor(x1)+frame.bounds.left,math.floor(y1)+frame.bounds.top
             width,height=math.ceil(x2)-math.floor(x1),math.ceil(y2)-math.floor(y1)
             selected.append(Detection(frame.sequence,frame.captured_at,time.monotonic(),Box(left,top,width,height),Point(left+width//2,top+height//2),float(score),self.names[int(kind)]))
+        return selected
+    def detect(self,frame):
+        selected=self.detections(frame)
         return selected[0] if len(selected)==1 else None
+    def candidates(self,frame):
+        # Preserve every candidate so the existing ownership tracker can abstain.
+        return [[d.box.left,d.box.top,d.box.left+d.box.width,d.box.top+d.box.height] for d in self.detections(frame)]
+
 
 def make_detector(profile,registry=None,*,templates=None,weights=None,candidate=False):
     if profile.data["model"]["backend"]=="template":
@@ -127,6 +134,18 @@ def make_detector(profile,registry=None,*,templates=None,weights=None,candidate=
         weights=registry.active(profile)["weights_path"]
     detector=TaskNeuralDetector(profile,weights)
     detector.offline_only=offline_weights
+    return detector
+
+def evaluated_movement_candidate(profile,weights,training_run,evaluation):
+    """Explicit one-shot movement testing only; does not promote or permit clicking."""
+    import json
+    from .lifecycle import ModelRegistry
+    from .experiments import sha
+    run=json.loads((Path(training_run)/"run.json").read_text())
+    report=json.loads(Path(evaluation).read_text())
+    ModelRegistry._validate_evidence(profile,sha(weights),run,report)
+    detector=TaskNeuralDetector(profile,weights)
+    detector.movement_test_approved=True
     return detector
 
 class TaskSession:
@@ -165,7 +184,8 @@ class TaskSession:
     def execute(self,mouse,target,kind,window,now):
         # Policy composition only: the detector and mouse interfaces stay unchanged.
         if self.outcome is not None or self.clicked_at is not None:return False
-        if getattr(self.detector,"offline_only",False) is True and mouse.mode!="dry-run":return False
+        if getattr(self.detector,"offline_only",False) is True and mouse.mode!="dry-run":
+            if not (mouse.mode=="move" and kind=="move" and getattr(self.detector,"movement_test_approved",False) is True):return False
         if self.profile.digest!=self.bound_profile_sha or target!=self.last_target or not self.profile.allows(window) or window.hwnd!=self.preview_window:return False
         if not 0<=now-target.captured_at<=self.profile.data["max_frame_age"] or mouse.max_age>self.profile.data["max_frame_age"]:return False
         accepted=mouse.execute(target,kind)

@@ -111,6 +111,6 @@ def initialize(settings):
   settings.top_left = (min_x, min_y)
   settings.bot_right = (max_x, max_y)
   settings.load_images()
-  if not settings.templates:
+  if settings.detector_backend=="template" and not settings.templates:
     logger.error("No bobber images found. Add some in the GUI's Bobber Images tab.")
     raise RuntimeError("No valid bobber templates")

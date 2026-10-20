@@ -16,7 +16,7 @@ class TargetingPanel(ttk.Frame):
         self.settings_provider=settings_provider
         self.preview=Preview();self.job=Job(Path.home()/'wow-fishing-helper'/'logs');self.closed=False
         self.values={};self.status=tk.StringVar(value='Stopped. Normal fishing is separate; these tools cannot change its backend.')
-        fields=[('profile',''),('registry','data/model-registry'),('hwnd',''),('dataset','data/dataset'),('session','session-1'),('cast','cast-1'),('region','0 0 640 480'),('config','configs/task-training.json'),('output','runs/task-1'),('release',''),('reviewer',''),('weights',''),('training_run',''),('python',sys.executable),('export_output','datasets/fishing-v1')]
+        fields=[('profile',str(Path('configs/tasks/fishing-neural-v2.json').resolve()) if Path('configs/tasks/fishing-neural-v2.json').exists() else ''),('registry','data/model-registry'),('hwnd',''),('dataset','data/dataset'),('session','session-1'),('cast','cast-1'),('region','0 0 640 480'),('config','configs/task-training.json'),('output','runs/task-1'),('release',''),('reviewer',__import__('getpass').getuser()),('weights',''),('training_run',''),('python',sys.executable),('export_output','datasets/fishing-v1')]
         for name,default in fields:self.values[name]=tk.StringVar(value=default)
         if training_parent is None:
             tabs=ttk.Notebook(self);tabs.pack(fill='both',expand=True)
@@ -48,6 +48,10 @@ class TargetingPanel(ttk.Frame):
         ttk.Label(visual,text='This is separate from normal fishing. Import shared settings explicitly; normal casting/bite/timing settings stay in Normal fishing.',wraplength=850).pack(anchor='w')
         fields_on(visual,[('profile','Task profile'),('registry','Model registry'),('hwnd','Game window'),('dataset','Recording dataset'),('session','Session / visit ID'),('cast','Cast ID'),('region','Capture area (left top width height)')])
         buttons(visual,[('Choose profile',self.choose_profile),('Select game window',self.select_window),('Use normal fishing settings',self.import_normal_settings),('Window / model metadata',self.describe),('Use full game area',self.use_window_region),('Record 30 seconds (no clicks)',self.root_after_capture)])
+        buttons(visual,[('Preview latest trained model (no input)',lambda:self.preview_latest(False)),
+                        ('Set up movement-only test',lambda:self.preview_latest(True)),
+                        ('Review evaluation / approve model',self.review_latest_evaluation)])
+        ttk.Button(visual,text='How to use my trained model — step-by-step guide',command=self.use_model_guide).pack(anchor='w')
         self.mode=tk.StringVar(value='dry-run')
         modes=ttk.Combobox(visual,textvariable=self.mode,values=['dry-run','move','single-click'],state='readonly')
         modes.pack(anchor='w');modes.bind('<<ComboboxSelected>>',lambda event:self.stop())
@@ -56,6 +60,18 @@ class TargetingPanel(ttk.Frame):
         self.image=ttk.Label(visual);self.image.pack(fill='both',expand=True)
         self.details=tk.Text(visual,height=6,wrap='word');self.details.pack(fill='x')
 
+        quick=ttk.LabelFrame(training_parent,text='Start here — train a bobber detector',padding=8)
+        quick.pack(fill='x',padx=6,pady=6)
+        self.training_progress=tk.StringVar(value='Click Refresh progress to see your next step.')
+        ttk.Label(quick,textvariable=self.training_progress,wraplength=820,justify='left').pack(fill='x')
+        ttk.Button(quick,text='Train my reviewed pictures — automatic setup (5-epoch first run)',
+                   command=lambda:self.guard(self.train_automatic)).pack(fill='x',pady=6)
+        self.trained_file=tk.StringVar(value='Training output will be a best.pt model, not a .whl installer.')
+        ttk.Label(quick,textvariable=self.trained_file,wraplength=820).pack(fill='x')
+        ttk.Button(quick,text='Open trained model folder',command=lambda:self.guard(self.open_trained_folder)).pack(anchor='w')
+        ttk.Button(quick,text='Evaluate latest trained model (automatic paths)',command=lambda:self.guard(self.evaluate_latest)).pack(anchor='w')
+        buttons(quick,[('1. Record another session',self.record_training_session),('2. Label pictures',self.label_pictures),('3. Prepare training dataset',self.prepare_dataset),('4. Install training support',self.install_training),('5. Start training',self.start_training_easy),('Refresh progress',self.refresh_training_progress)])
+        ttk.Label(quick,text='Label several independent sessions. Preparing data and training never clicks in WoW. Advanced fields below are optional adjustments.',wraplength=820).pack(anchor='w')
         ttk.Label(training_parent,text='Neural training: what happens and why',font=('Segoe UI',12,'bold')).pack(anchor='w',padx=8,pady=6)
         explanation=(
             '1. RECORD full scenes in Visual targeting. Each visit gets a new session ID; each cast gets a new cast ID. Capture never clicks.\n'
@@ -78,15 +94,201 @@ class TargetingPanel(ttk.Frame):
             ttk.Entry(controls,textvariable=self.train_values[key],width=24 if key=='model' else 8).grid(row=1,column=column)
         self.allow_download=tk.BooleanVar(value=False)
         ttk.Checkbutton(training_parent,text='Allow official pretrained weight download (use a name such as yolo11n.pt)',variable=self.allow_download).pack(anchor='w')
-        buttons(training_parent,[('Choose neural profile',self.choose_neural_profile),('Import human labels JSON',self.import_labels),('Export reviewed dataset',self.export_dataset),('Load training config',self.load_train_config),('Check training dataset',self.check_training_data),('Train neural detector',lambda:self.job_command('train')),('Evaluate candidate',lambda:self.job_command('evaluate')),('Install training dependencies',self.install_training),('Cancel training / job',self.cancel_job),('Open training guide',self.training_guide)])
+        buttons(training_parent,[('Choose neural profile',self.choose_neural_profile),('Import labels JSON (advanced)',self.import_labels),('Export reviewed dataset',self.export_dataset),('Load training config',self.load_train_config),('Check training dataset',self.check_training_data),('Train neural detector',lambda:self.job_command('train')),('Evaluate candidate',lambda:self.job_command('evaluate')),('Install training dependencies',self.install_training),('Cancel training / job',self.cancel_job),('Open training guide',self.training_guide)])
         fields_on(training_parent,[('registry','Model registry'),('release','Previously approved release for rollback')])
         buttons(training_parent,[('Rollback approved model',self.rollback)])
         ttk.Label(training_parent,textvariable=self.status,wraplength=850).pack(fill='x')
         self.training_log=tk.Text(training_parent,height=8,wrap='word');self.training_log.pack(fill='both',expand=True)
         if Path(self.get('config')).is_file():self.guard(self.load_train_config)
+        if self.train_values['model'].get()=='weights/yolo11n.pt' and not Path('weights/yolo11n.pt').exists():
+            self.train_values['model'].set('yolo11n.pt')
         for key in ('profile','registry','hwnd'):
             self.values[key].trace_add('write',lambda *args:self.stop())
+        self.refresh_training_progress()
         self.bind('<Destroy>',self.destroyed,add='+');self.poll_timer=self.after(150,self.poll)
+    def evaluate_latest(self):
+        import time
+        from .deployment import latest_candidate
+        self.stop();info=latest_candidate()
+        latest=json.loads(Path('data/training-latest.json').read_text())
+        self.values['profile'].set(str(info['profile']))
+        self.values['weights'].set(str(info['weights']))
+        self.values['training_run'].set(str(info['run']))
+        self.values['dataset'].set(latest['dataset'])
+        output=Path('runs')/('fishing-evaluation-'+str(time.time_ns()))
+        self.values['output'].set(str(output))
+        self.job_command('evaluate')
+        active={'output':str(output),'profile':str(info['profile']),'pid':self.job.process.pid,'log':str(self.job.log)}
+        Path('data/evaluation-active.json').write_text(json.dumps(active,indent=2))
+        self.status.set('Evaluating latest model on its held-out data; paths filled automatically. Review evaluation after completion. No input or model promotion.')
+    def use_model_guide(self):
+        import webbrowser
+        webbrowser.open((Path.cwd()/'docs/USING-TRAINED-MODEL.html').resolve().as_uri())
+    def preview_latest(self,movement=False):
+        self.stop()
+        from .deployment import latest_candidate
+        from .window_context import allowed_windows
+        info=latest_candidate()
+        profile=Profile.read(info['profile'])
+        self.values['profile'].set(str(info['profile']));self.values['weights'].set(str(info['weights']))
+        self.values['training_run'].set(str(info['run']))
+        if movement and not info['evaluation']:raise ValueError('Run Evaluate candidate on independent test data first. Candidate preview still works without input.')
+        if not self.get('hwnd'):
+            windows=allowed_windows(profile)
+            if len(windows)==1:self.values['hwnd'].set(str(windows[0]['window']['hwnd']))
+            else:
+                self.select_window();self.status.set('Select the game window, then press the preview/test button again.');return
+        if self.preview.thread and self.preview.thread.is_alive():
+            self.preview.thread.join(timeout=1)
+        region=None
+        if self.settings_provider is not None:
+            settings=self.settings_provider()
+            if settings is not None and settings.area_of_interest:
+                xs=[p[0] for p in settings.area_of_interest];ys=[p[1] for p in settings.area_of_interest]
+                region=(min(xs),min(ys),max(xs)-min(xs),max(ys)-min(ys))
+                self.values['region'].set(' '.join(map(str,region)))
+        self.mode.set('move' if movement else 'dry-run')
+        self.preview.start(profile,ModelRegistry(self.get('registry')),self.get('hwnd'),self.mode.get(),
+                           weights=str(info['weights']),training_run=str(info['run']),
+                           evaluation=str(info['evaluation']) if info['evaluation'] else None,region=region)
+        self.status.set('Movement-only test configured. Check the cross, then click Arm ONE attempt and focus WoW within 3 seconds. No click is permitted.' if movement else 'Candidate neural preview loading. Focus WoW; return here to inspect the latest cross. No input.')
+    def review_latest_evaluation(self):
+        from .deployment import latest_candidate
+        from tkinter import messagebox
+        info=latest_candidate()
+        if not info['evaluation']:raise ValueError('No completed matching test report. Evaluate candidate first.')
+        profile=Profile.read(info['profile']);report=json.loads(info['evaluation'].read_text())
+        metrics=report['backends']['selected'];gates=profile.data['promotion']
+        text=(f"Independent test: precision={metrics['precision']}, recall={metrics['recall']}, "
+              f"false detections/cast={metrics['false_detections_per_cast']['mean']}.\n"
+              f"Required: precision >= {gates['min_precision']}, recall >= {gates['min_recall']}, false/cast <= {gates['max_false_per_cast']}.")
+        registry=ModelRegistry(self.get('registry'))
+        self.details.delete('1.0','end');self.details.insert('end',text)
+        try:registry._quality(profile,report)
+        except ValueError:
+            self.status.set('Not approved for automatic fishing: quality thresholds not met. Candidate preview and armed movement-only test remain available.')
+            messagebox.showinfo('Model evaluation — more improvement needed',text+'\n\nAutomatic neural fishing remains disabled. Preview/movement tests do not promote the model.',parent=self)
+            return
+        if not messagebox.askyesno('Approve evaluated model for live use?',text+'\n\nApprove this exact evaluated model? Live controls remain off until you enable them in Normal fishing.',parent=self):return
+        release=registry.register(profile,info['weights'],info['run']/'run.json',info['evaluation'])
+        registry.promote(profile,release,self.get('reviewer'))
+        self.values['profile'].set(str(info['profile']))
+        self.status.set(f'Approved release {release}. Select Neural network in Normal fishing and explicitly enable live controls to use it.')
+    def open_trained_folder(self):
+        import os
+        path=Path('data/training-latest.json')
+        if not path.is_file():raise ValueError('No completed model yet. Start training and wait for completion.')
+        result=json.loads(path.read_text(encoding='utf-8'))
+        checkpoint=Path(result['checkpoint'])
+        if result.get('status')!='completed' or not checkpoint.is_file():raise ValueError('The last training run has not produced a completed model.')
+        os.startfile(str(checkpoint.parent.resolve()))
+    def train_automatic(self):
+        import time
+        from tkinter import messagebox
+        self.stop()
+        profile=self.training_profile_default()
+        if profile.data['model']['backend']!='neural':raise ValueError('Select the neural profile first; the normal fishing backend will not be changed.')
+        from . import dataset as ds
+        root=self.get('dataset');data=ds.load(root)
+        reviewed=[r for r in data['frames'] if r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human']
+        sessions=len({r['session_id'] for r in reviewed})
+        if sessions<2:raise ValueError('Review pictures from at least two independent sessions first. Use Label pictures.')
+        if data.get('export'):raise ValueError('Select the original recording dataset for automatic preparation.')
+        allow_download=messagebox.askyesno('Start training',
+            f'Train from {len(reviewed)} reviewed pictures in {sessions} sessions?\n'
+            'This prepares the data automatically, uses CPU or an available CUDA GPU, and trains 5 passes.\n'
+            'Official starter weights may be downloaded. No game input or model activation occurs.\n'
+            +('There is no independent test session yet; this will be an initial candidate.' if sessions==2 else 'An independent test partition will be kept out of fitting.'),parent=self)
+        if not allow_download:return
+        output=Path('runs')/('fishing-initial-'+str(time.time_ns()))
+        self.values['output'].set(str(output))
+        args=['-u','-m','visual_targeting.autotrain','--profile',self.get('profile'),
+              '--dataset',root,'--output',str(output),'--allow-download']
+        self.job.start_python(args,python=self.get('python'))
+        self.status.set('Automatic preparation/training started. Watch the log; Cancel training / job stops this process. No model is activated.')
+        self.automatic_output=str(output)
+    def training_profile_default(self):
+        if not self.get('profile'):
+            path=Path('configs/tasks/fishing-neural-v2.json').resolve()
+            self.values['profile'].set(str(path))
+        return self.profile()
+    def refresh_training_progress(self):
+        from . import dataset as ds
+        try:
+            root=Path(self.get('dataset'))
+            if not (root/'manifest.json').exists():
+                self.training_progress.set('NEXT: Record examples. No recorded dataset exists at the selected path yet.')
+                return
+            data=ds.load(root);rows=data['frames']
+            reviewed=[r for r in rows if r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human']
+            sessions=len({r['session_id'] for r in reviewed})
+            if not reviewed:next_step='NEXT: Click 2. Label pictures. Draw a box around each bobber and save.'
+            elif not data.get('export') and sessions<2:next_step='NEXT: Record and label another independent session for validation.'
+            elif not data.get('export'):next_step='READY: Click Train my reviewed pictures for automatic setup. A third reviewed session adds independent testing.'
+            else:next_step='NEXT: Install training support if needed, then click 5. Start training. Training never activates a model.'
+            self.training_progress.set(f"{len(rows)} recorded pictures | {len(reviewed)} human-reviewed | {sessions} reviewed sessions.\n{next_step}")
+        except (OSError,ValueError,KeyError,TypeError) as exc:self.training_progress.set(f'Dataset needs attention: {exc}')
+    def label_pictures(self):
+        self.stop()
+        if self.job.process is not None and self.job.process.poll() is None:raise ValueError('Cancel or finish the recording/training job before labeling.')
+        profile=self.training_profile_default()
+        if not self.get('reviewer'):
+            from tkinter import simpledialog
+            name=simpledialog.askstring('Human reviewer','Your name (saved with the labels you review):',parent=self)
+            if not name:return
+            self.values['reviewer'].set(name)
+        from .label_gui import open_labeler
+        open_labeler(self,profile,self.get('dataset'),self.get('reviewer'),self.refresh_training_progress)
+    def record_training_session(self):
+        import uuid
+        self.stop();self.training_profile_default()
+        self.values['session'].set('visit_'+uuid.uuid4().hex[:12])
+        self.values['cast'].set('cast_1')
+        if not self.get('hwnd'):
+            self.select_window()
+            self.status.set('Select the game window, then click Record another session again. Recording never casts for you.')
+            return
+        from . import dataset as ds
+        if (Path(self.get('dataset'))/'manifest.json').exists() and ds.load(self.get('dataset')).get('export'):
+            self.values['dataset'].set(getattr(self,'raw_training_dataset','data/dataset'))
+        self.use_window_region()
+        self.root_after_capture(delay_seconds=10)
+    def prepare_dataset(self):
+        import time
+        self.stop()
+        profile=self.training_profile_default()
+        from .task_workflow import check_dataset
+        data,_=check_dataset(profile,self.get('dataset'),human=True,reviewed_only=True)
+        reviewed=[r for r in data['frames'] if r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human']
+        if len({r['session_id'] for r in reviewed})<3:raise ValueError('Label examples from at least 3 independent sessions before preparing train/validation/test splits.')
+        output=Path('datasets')/('fishing-'+str(time.time_ns()))
+        self.values['export_output'].set(str(output))
+        self.raw_training_dataset=self.get('dataset')
+        self.export_dataset()
+        self.pending_export=str(output)
+    def start_training_easy(self):
+        import time
+        self.training_profile_default()
+        # A neural profile is explicit; do not silently mutate an evaluated template profile.
+        if self.profile().data['model']['backend']!='neural':raise ValueError('Choose the fishing neural profile, then Start training. Existing template settings are not changed automatically.')
+        from .task_workflow import check_dataset
+        check_dataset(self.profile(),self.get('dataset'),human=True,exported=True)
+        import sys,importlib.util
+        if Path(self.get('python')).resolve()==Path(sys.executable).resolve() and importlib.util.find_spec('ultralytics') is None:
+            raise ValueError('Click 4. Install training support and wait for completion, then Start training again.')
+        from tkinter import filedialog,messagebox
+        model=self.train_values['model'].get().strip()
+        if not Path(model).is_file() and not self.allow_download.get():
+            download=messagebox.askyesnocancel('Starter model','Download the official yolo11n.pt starter weights when training begins?\nYes: allow download. No: choose your local .pt weights. Cancel: return without training.',parent=self)
+            if download is None:return
+            if download:
+                self.train_values['model'].set('yolo11n.pt');self.allow_download.set(True)
+            else:
+                path=filedialog.askopenfilename(title='Choose local pretrained .pt weights',filetypes=[('Pretrained model','*.pt')])
+                if not path:return
+                self.train_values['model'].set(path)
+        self.values['output'].set(str(Path('runs')/('fishing-'+str(time.time_ns()))))
+        self.job_command('train')
     def import_normal_settings(self):
         self.stop()
         if self.settings_provider is None:raise ValueError('Open Start Fishing.cmd to import the original Settings. Standalone targeting has no normal Settings instance.')
@@ -209,10 +411,10 @@ class TargetingPanel(ttk.Frame):
             self.after_cancel(self.capture_pending);self.capture_pending=None
         self.status.set('Paused / stopped; disarmed')
     def base_args(self):return ['--profile',self.get('profile'),'--registry',self.get('registry')]
-    def root_after_capture(self):
+    def root_after_capture(self,delay_seconds=3):
         self.stop();args=self.base_args()+['record','--dataset',self.get('dataset'),'--session',self.get('session'),'--cast',self.get('cast'),'--hwnd',self.get('hwnd'),'--region',*self.get('region').split()]
-        self.status.set('Capture in 3 seconds. Focus target; capture cannot click.')
-        self.capture_pending=self.after(3000,lambda:self.guard(lambda:self.job.start(args)))
+        self.status.set(f'Capture in {delay_seconds} seconds. Focus the game and cast manually; recording cannot click.')
+        self.capture_pending=self.after(delay_seconds*1000,lambda:self.guard(lambda:self.job.start(args)))
     def job_command(self,command):
         self.stop()
         if self.profile().data['model']['backend']!='neural':raise ValueError('Choose a neural profile before neural training/evaluation. Normal fishing remains unchanged.')
@@ -248,10 +450,24 @@ class TargetingPanel(ttk.Frame):
         except queue.Empty:pass
         if self.job.process:
             state=self.job.status()
+            if getattr(self,'pending_export',None) and state=='completed':
+                self.values['dataset'].set(self.pending_export)
+                self.pending_export=None
+                self.refresh_training_progress()
+            elif getattr(self,'pending_export',None) and state.startswith('failed'):
+                self.pending_export=None
+
             text=self.job.log.read_text(encoding='utf-8',errors='replace')[-12000:]
             for widget in (self.details,self.training_log):
                 widget.delete('1.0','end')
                 widget.insert('end',f'Job: {state}\nLog: {self.job.log}\n{text}')
+        latest=Path('data/training-latest.json')
+        if latest.exists():
+            try:
+                result=json.loads(latest.read_text(encoding='utf-8'))
+                if result.get('status')=='completed':
+                    self.trained_file.set('Trained candidate file: '+result['checkpoint']+' (not automatically activated)')
+            except (OSError,ValueError,KeyError):pass
         self.poll_timer=self.after(150,self.poll)
     def shutdown(self):
         if getattr(self,'poll_timer',None):

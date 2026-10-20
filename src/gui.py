@@ -127,7 +127,7 @@ class App():
     missing=[]
     if self.s.area_of_interest is None:missing.append("fishing area")
     if self.s.cast_location is None:missing.append("Fishing ability")
-    if not self.s.image_files():missing.append("bobber picture")
+    if self.s.detector_backend=="template" and not self.s.image_files():missing.append("bobber picture")
     self.ready_text.set("Needs setup: "+", ".join(missing) if missing else "Setup saved. Ready to start fishing.")
 
   def guided_setup(self):
@@ -361,7 +361,9 @@ class App():
     return p
 
   def setup_tab(self, nb):
-    p = self.page(nb)
+    scroll = ScrollFrame(nb,height=550)
+    p = self.page(scroll.inner)
+    p.pack(fill="both",expand=True)
     self.section(p, 0, "Screen locations")
     self.note(p, 1, "Pick takes a screenshot after 5 seconds. Click a location or drag an area on the frozen picture. "
                     "For bait or pole, open the bags or character panel during the countdown. Save after selecting.")
@@ -378,7 +380,62 @@ class App():
     self.num(p, 12, "Re-bait every", "bait_interval_mins", "minutes", lo=1)
     self.num(p, 14, "Template match confidence", "match_threshold", "0 to 1", lo=0, hi=1)
     self.num(p, 13, "Splash sensitivity", "splash_threshold_whitepx", "white pixels needed, lower = more sensitive", cast=int, lo=1)
-    return p
+    self.section(p, 15, "Detector and mouse placement")
+    self.choice(p, 16, "Find bobbers using", "detector_backend",
+                [("template","Template matching (original)"),("neural","Neural network (approved model for live)")])
+    for row,attr,label in [(17,"neural_weights","Candidate .pt (dry-run only)"),(18,"neural_profile","Neural task profile"),(19,"neural_registry","Approved model registry")]:
+      ttk.Label(p,text=label).grid(row=row,column=0,sticky="w")
+      value=tk.StringVar(value=getattr(self.s,attr))
+      setattr(self,attr+"_var",value)
+      ttk.Entry(p,textvariable=value,width=40).grid(row=row,column=1,columnspan=3,sticky="ew")
+      self.fields.append((attr,value.get))
+    ttk.Button(p,text="Use latest trained model paths",command=self.use_latest_neural).grid(row=20,column=0,columnspan=4,sticky="w")
+    self.check(p,21,"Move onto a uniquely tracked bobber while waiting for the bite","hover_on_acquire")
+    self.check(p,22,"Require the calibrated gear cursor before a bite click","require_gear_cursor")
+    ttk.Button(p,text="1. Capture normal cursor (5s)",command=lambda:self.calibrate_cursor(False)).grid(row=23,column=0,columnspan=2,sticky="w")
+    ttk.Button(p,text="2. Capture gear cursor (5s)",command=lambda:self.calibrate_cursor(True)).grid(row=23,column=2,columnspan=2,sticky="w")
+    self.cursor_status=tk.StringVar(value="Gear calibration is optional and lasts for this helper session.")
+    ttk.Label(p,textvariable=self.cursor_status,wraplength=680).grid(row=24,column=0,columnspan=4,sticky="w")
+    self.note(p,25,"Neural dry-run can inspect candidate weights. Automatic input requires an explicitly approved matching model. "
+                      "A gear cursor confirms an interactable hover, not a bite; splash evidence is still required. "
+                      "For a safe movement-only test use Visual targeting. Keep WoW visible on one monitor.")
+    return scroll
+
+  def use_latest_neural(self):
+    try:
+      from visual_targeting.deployment import latest_candidate
+      info=latest_candidate()
+      self.neural_weights_var.set(str(info["weights"]))
+      self.neural_profile_var.set(str(info["profile"]))
+      self.status.set("Latest trained paths selected. Choose Neural network above; leave live controls off for a candidate dry-run.")
+    except Exception as exc:self.status.set(f"Cannot select trained model: {exc}")
+
+  def calibrate_cursor(self,gear):
+    if self.busy:return
+    self.targeting_panel.stop()
+    self.busy=True;self.root.iconify()
+    self.cursor_status.set("Hover YOUR bobber until the gear appears." if gear else "Hover empty water so the normal cursor appears.")
+    def capture():
+      self.cursor_timer=None
+      try:
+        from visual_targeting.cursor_feedback import cursor_identity
+        from visual_targeting.window_context import query_window
+        from visual_targeting.profiles import Profile
+        handle,hwnd=cursor_identity()
+        identity,_,_=query_window(hwnd)
+        profile=Profile.read(resolve_path(self.neural_profile_var.get()))
+        if not profile.allows(identity):raise ValueError("WoW must be foreground during calibration")
+        other=self.s.normal_cursor_handle if gear else self.s.gear_cursor_handle
+        if other and handle==other:raise ValueError("The two cursor shapes are identical. Hover empty water for normal, and the bobber for gear.")
+        if gear:
+          self.s.gear_cursor_handle=handle;self.s.gear_window_hwnd=hwnd
+        else:self.s.normal_cursor_handle=handle
+        self.cursor_status.set("Captured gear cursor." if gear else "Captured normal cursor. Now capture the gear while hovering your bobber.")
+      except Exception as exc:self.cursor_status.set(f"Cursor calibration failed: {exc}")
+      finally:
+        self.busy=False
+        if not self.closed.is_set():self.root.deiconify()
+    self.cursor_timer=self.root.after(5000,capture)
 
   def loot_tab(self, nb):
     p = self.page(nb)
@@ -462,7 +519,7 @@ class App():
       self.status.set("Finish or cancel setup first.")
       return
     if not self.collect():return
-    if self.s.area_of_interest is None or self.s.cast_location is None or not self.s.image_files():
+    if self.s.area_of_interest is None or self.s.cast_location is None or (self.s.detector_backend=="template" and not self.s.image_files()):
       self.guided_setup()
       return
     if self.s.attach_bait and (self.s.bait_location is None or self.s.pole_location is None):
@@ -475,9 +532,21 @@ class App():
       messagebox.showerror("Hearthstone setup incomplete","Choose ordinary logout or pick the Hearthstone in Normal fishing.",parent=self.root)
       return
     self.s.load_images()
-    if not self.s.templates:
+    if self.s.detector_backend=="template" and not self.s.templates:
       messagebox.showerror("Bobber picture unusable","Run Guided setup to select a clear bobber picture.",parent=self.root)
       return
+    if self.s.require_gear_cursor and self.live_controls.get() and (not self.s.gear_cursor_handle or not self.s.normal_cursor_handle):
+      messagebox.showerror("Calibrate the gear cursor","Capture both normal and gear cursor shapes above, or turn off Require calibrated gear.",parent=self.root)
+      return
+    if self.s.detector_backend=="neural":
+      try:
+        from fishing.backend import make_fishing_detector
+        self.status.set("Checking neural model approval and loading detector...")
+        self.root.update_idletasks()
+        self.s._prepared_detector=make_fishing_detector(self.s,live_input=self.live_controls.get())
+      except Exception as exc:
+        messagebox.showerror("Neural model not ready",str(exc)+"\nUse Visual targeting for candidate preview/movement tests. Review evaluation before approving automatic fishing.",parent=self.root)
+        return
     from visual_targeting.input import desktop, WindowsInput, DryRunInput
     desktop.configure(WindowsInput() if self.live_controls.get() else DryRunInput())
     self.s.save()
@@ -496,7 +565,7 @@ class App():
         continue
 
   def close(self):
-    for timer in (getattr(self, "poll_timer", None), getattr(self, "setup_timer", None), getattr(self, "pick_timer", None)):
+    for timer in (getattr(self, "poll_timer", None), getattr(self, "setup_timer", None), getattr(self, "pick_timer", None), getattr(self, "cursor_timer", None)):
       if timer:
         try: self.root.after_cancel(timer)
         except tk.TclError: pass

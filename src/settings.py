@@ -26,6 +26,15 @@ def _range(r):
 class Settings():
   def __init__(self):
     self.is_testing = False
+    self.detector_backend = "template"
+    self.neural_profile = "../configs/tasks/fishing-neural-v2.json"
+    self.neural_registry = "../data/model-registry"
+    self.neural_weights = ""
+    self.hover_on_acquire = True
+    self.require_gear_cursor = False
+    self.gear_cursor_handle = 0  # session-only; calibrate after launching the helper
+    self.normal_cursor_handle = 0
+    self.gear_window_hwnd = 0
     self.area_of_interest = None
     self.chat_area = None
     self.health_area = None
@@ -104,6 +113,12 @@ class Settings():
     self.templates = []
 
   def apply(self, data):
+    self.detector_backend = data.get("detectorBackend", self.detector_backend)
+    self.neural_profile = data.get("neuralProfile", self.neural_profile)
+    self.neural_registry = data.get("neuralRegistry", self.neural_registry)
+    self.neural_weights = data.get("neuralWeights", self.neural_weights)
+    self.hover_on_acquire = data.get("hoverOnAcquire", self.hover_on_acquire)
+    self.require_gear_cursor = data.get("requireGearCursor", self.require_gear_cursor)
     self.acquire_timeout = float(data.get("acquireTimeout", self.acquire_timeout))
     self.bite_backend = data.get("biteBackend", self.bite_backend)
     self.match_threshold = float(data.get("matchThreshold", self.match_threshold))
@@ -187,6 +202,12 @@ class Settings():
 
   def to_dict(self):
     return {
+      "detectorBackend": self.detector_backend,
+      "neuralProfile": self.neural_profile,
+      "neuralRegistry": self.neural_registry,
+      "neuralWeights": self.neural_weights,
+      "hoverOnAcquire": self.hover_on_acquire,
+      "requireGearCursor": self.require_gear_cursor,
       "acquireTimeout": self.acquire_timeout,
       "biteBackend": self.bite_backend,
       "matchThreshold": self.match_threshold,

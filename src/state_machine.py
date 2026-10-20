@@ -25,6 +25,7 @@ cast_time = 0
 precast = None
 live_input_enabled = False
 loot_visible_precast = False
+fishing_detector = None
 
 def synchronize_input_mode(force_dry_run=False):
   """GUI and the cast tracker must use the same explicitly selected adapter."""
@@ -35,8 +36,12 @@ def synchronize_input_mode(force_dry_run=False):
 
 
 def init():
+  global fishing_detector
   logger.info("Initializing")
   initialize(config)
+  from fishing.backend import make_fishing_detector
+  fishing_detector = getattr(config,"_prepared_detector",None) or make_fishing_detector(config,live_input=live_input_enabled)
+  logger.info("Fishing detector: {}",config.detector_backend)
   loot.start()
   session.start()
   move_state(attach_bait)
@@ -94,7 +99,7 @@ def cast():
   # Observe existing bobbers before casting, so another player's float is excluded.
   from mss import mss
   import numpy as np
-  detector = TemplateDetector(config.templates, config.match_threshold, config.canny_thresholds)
+  detector = fishing_detector
   try:
     loot_visible_precast = bool(loot.enabled() and loot.occupied_slots(loot.grab()))
     with mss() as capture:
@@ -105,10 +110,20 @@ def cast():
     precast = None
     move_state(attach_bait)
     return
-  move_to(config, config.cast_location)
-  pag.click()
+  if live_input_enabled:
+    try:
+      from fishing.dispatch import click_fishing_ability
+      from visual_targeting.profiles import Profile
+      from settings import resolve_path
+      click_fishing_ability(config,pag.cancelled,Profile.read(resolve_path(config.neural_profile)))
+    except (OSError,ValueError,RuntimeError) as exc:
+      safety.request_pause("Cannot cast safely: "+str(exc))
+      return
+  else:
+    move_to(config, config.cast_location)
+    pag.click()
   cast_time = time.monotonic()
-  logger.info("Clicked fishing ability")
+  logger.info("Clicked fishing ability" if live_input_enabled else "Dry-run cast proposed; no game input")
   move_state(find_hover_wait)
 
 def find_hover_wait():
@@ -116,7 +131,7 @@ def find_hover_wait():
   def catch_check():
     # Independent visual loot evidence, never infer a catch from clicking/disappearance.
     return bool(not loot_visible_precast and loot.enabled() and loot.occupied_slots(loot.grab()))
-  task = FishingTask(config, precast=precast, live_input=live_input_enabled,
+  task = FishingTask(config, detector=fishing_detector, precast=precast, live_input=live_input_enabled,
                      bite_backend=getattr(config, "bite_backend", "temporal"), catch_check=catch_check, cancelled=pag.cancelled, cast_started=cast_time)
   result = task.run()
   logger.info("Fishing outcome: {}", result)

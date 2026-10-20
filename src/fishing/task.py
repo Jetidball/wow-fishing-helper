@@ -139,6 +139,19 @@ class FishingTask:
     factory=self.io.get("capture_factory",mss)
     detector=self.detector or TemplateDetector(settings.templates,getattr(settings,"match_threshold",.7),settings.canny_thresholds,clock)
     if not hasattr(detector,"candidates"):raise ValueError("tracked task requires a multi-candidate detector")
+    if self.live_input and getattr(detector,"offline_only",False) is True:
+      raise ValueError("A candidate model cannot run automatic fishing; explicitly promote a quality-approved model first.")
+    dispatch=self.io.get("dispatch")
+    if self.live_input and dispatch is None and self.io.get("mouse") is None:
+      from .dispatch import FishingDispatch
+      from settings import resolve_path
+      from visual_targeting.profiles import Profile
+      from visual_targeting.input import desktop
+      try:dispatch=FishingDispatch(settings,stop or desktop.cancelled,Profile.read(resolve_path(settings.neural_profile)))
+      except (OSError,ValueError,RuntimeError) as exc:
+        logger.warning("Fishing input not ready: {}",exc)
+        return "input_not_ready"
+    hovered=False
     wait=self.io.get("wait_key",cv.waitKey)
     monitor=settings.get_monitor();sequence=0;last_frame=None;capture_errors=0;last_progress=searching
     logger.info("Finding bobber: search budget={}s, total cast timeout={}s, threshold={}, templates={}, pre-cast matches={}, area={}",
@@ -173,6 +186,12 @@ class FishingTask:
             last_progress=observed
           if self.machine.state!=prior:
             logger.info("Fishing state {} -> {}: {}",prior.value,self.machine.state.value,self.machine.reason)
+          if self.live_input and dispatch is not None and getattr(settings,"hover_on_acquire",False) and not hovered and self.machine.state in (State.TRACK,State.BITE) and self.machine.track:
+            if stopped() or not dispatch.move(frame,self.machine.center(self.machine.track)):
+              self.machine.finish("hover_rejected");logger.warning("Hover rejected: {}",dispatch.reason);break
+            hovered=True
+            from visual_targeting.cursor_feedback import gear_matches
+            logger.info("Hovered confirmed bobber at {}; calibrated gear={}",self.machine.center(self.machine.track),gear_matches(settings))
           if action:
             if not self.live_input:
               self.machine.finish("click_proposed")
@@ -180,6 +199,11 @@ class FishingTask:
             # Explicit opt-in only; recheck cancellation and frame age immediately before input.
             if stopped() or clock()-frame.captured_at>self.machine.p.max_frame_age:
               self.machine.finish("aborted");break
+            if dispatch is not None:
+              accepted=dispatch.click(frame,action["point"])
+              logger.info("Bite action: {}",dispatch.reason)
+              self.machine.acknowledge_click(accepted,clock())
+              continue
             mouse=self.io.get("mouse")
             move=self.io.get("move")
             if mouse is None:

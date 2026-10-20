@@ -49,12 +49,12 @@ class Preview:
         self.frames.put_nowait((image,reason))
     def stop(self):
         self.arm_event.clear();self.stop_event.set()
-    def start(self,profile,registry,hwnd,mode='dry-run'):
+    def start(self,profile,registry,hwnd,mode='dry-run',*,weights=None,training_run=None,evaluation=None,region=None):
         if self.thread and self.thread.is_alive():raise ValueError('Stop the previous preview first')
         if mode not in ('dry-run','move','single-click'):raise ValueError('Invalid mode')
         self.mode=mode;self.action_result='';self.stop_event.clear();self.arm_event.clear()
-        self.thread=threading.Thread(target=self.run,args=(profile,registry,int(hwnd)),daemon=True);self.thread.start()
-    def run(self,profile,registry,hwnd):
+        self.thread=threading.Thread(target=self.run,args=(profile,registry,int(hwnd),weights,training_run,evaluation,region),daemon=True);self.thread.start()
+    def run(self,profile,registry,hwnd,weights=None,training_run=None,evaluation=None,region=None):
         try:
             import cv2 as cv
             import numpy as np
@@ -65,17 +65,25 @@ class Preview:
             from .contracts import Frame,Box
             from .windows_mouse import WindowsMouse
             from .guarded_mouse import GuardedMouse
-            detector=make_detector(profile,registry);session=TaskSession(profile,detector)
+            if weights and self.mode=="move":
+                from .profiles import evaluated_movement_candidate
+                detector=evaluated_movement_candidate(profile,weights,training_run,evaluation)
+            elif weights and self.mode!="dry-run":
+                raise ValueError('Candidate weights allow dry-run preview or evaluated movement-only; clicks require a promoted model.')
+            else:detector=make_detector(profile,registry,weights=weights,candidate=weights is not None)
+            session=TaskSession(profile,detector)
             api=WindowsMouse();transforms=Transforms();mouse=None;deadline=None
             with mss() as capture:
                 sequence=0
                 while not self.stop_event.is_set():
                     identity,client,foreground=query_window(hwnd)
                     if not profile.allows(identity):raise ValueError('Window is outside profile allowlist')
+                    capture_rect=Rect(*region) if region is not None else client
+                    if not client.encloses(capture_rect):raise ValueError('Saved fishing area is outside the game. Pick the area again after moving/resizing the window.')
                     geometry=api.geometry(hwnd)
                     if transforms.active is None or transforms.active.window!=geometry:
                         transforms.invalidate('window_changed');self.arm_event.clear();mouse=None;deadline=None
-                        transforms.bind(geometry,Rect(0,0,client.width*96/geometry.dpi,client.height*96/geometry.dpi),Letterbox.fit(int(client.width),int(client.height),int(client.width),int(client.height)))
+                        transforms.bind(geometry,Rect((capture_rect.left-client.left)*96/geometry.dpi,(capture_rect.top-client.top)*96/geometry.dpi,capture_rect.width*96/geometry.dpi,capture_rect.height*96/geometry.dpi),Letterbox.fit(int(capture_rect.width),int(capture_rect.height),int(capture_rect.width),int(capture_rect.height)))
                     if self.arm_event.is_set():
                         self.arm_event.clear();self.action_result='';deadline=time.monotonic()+3
                     if foreground!=hwnd:
@@ -83,11 +91,11 @@ class Preview:
                         if deadline is not None and time.monotonic()>=deadline:deadline=None
                         self.publish(None,'Arming: focus target window' if deadline is not None else 'Paused: target window is not foreground');self.stop_event.wait(.1);continue
                     captured=time.monotonic()
-                    image=np.array(capture.grab(dict(left=int(client.left),top=int(client.top),width=int(client.width),height=int(client.height))))[:,:,:3].copy()
-                    frame=Frame(sequence,captured,image,Box(int(client.left),int(client.top),image.shape[1],image.shape[0]),'bgr');sequence+=1
+                    image=np.array(capture.grab(dict(left=int(capture_rect.left),top=int(capture_rect.top),width=int(capture_rect.width),height=int(capture_rect.height))))[:,:,:3].copy()
+                    frame=Frame(sequence,captured,image,Box(int(capture_rect.left),int(capture_rect.top),image.shape[1],image.shape[0]),'bgr');sequence+=1
                     target=session.preview(frame,identity,transforms.active,time.monotonic())
                     reason=session.reason
-                    if target:cv.drawMarker(image,(target.x-int(client.left),target.y-int(client.top)),(0,255,0),cv.MARKER_CROSS,20,2)
+                    if target:cv.drawMarker(image,(target.x-int(capture_rect.left),target.y-int(capture_rect.top)),(0,255,0),cv.MARKER_CROSS,20,2)
                     if self.arm_event.is_set():
                         self.arm_event.clear();deadline=time.monotonic()+3;reason='Arming in 3 seconds; focus target and release input'
                     if deadline is not None:
@@ -100,6 +108,12 @@ class Preview:
                             ok=session.execute(mouse,target,'move',identity,time.monotonic())
                             if ok and self.mode=='single-click':ok=session.execute(mouse,target,'click',identity,time.monotonic())
                             reason=mouse.reason if ok else 'Action rejected: '+mouse.reason+'; profile/model/outcome policy also applies'
+                            if ok:
+                                from .cursor_feedback import cursor_identity
+                                try:
+                                    handle,observed_hwnd=cursor_identity()
+                                    reason+=f'; observed cursor handle={handle} (gear identity requires calibration)'
+                                except (OSError,ValueError,RuntimeError):pass
                             if ok and self.mode=='single-click':reason+='; catch/outcome UNCONFIRMED'
                         else:reason='Arming consumed: '+session.reason
                         self.action_result=reason
