@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fishing Helper â€” Start here</title>
+<style>
+body{margin:0;background:#101725;color:#e7edf8;font:18px/1.6 system-ui,sans-serif}main{max-width:1020px;margin:auto;padding:45px 26px}h1{font-size:42px;line-height:1.15}h2{line-height:1.2}p{color:#bfccdf}.tag{color:#7ee7ca;font-weight:bold}.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}.card,section{background:#1b273b;border:1px solid #35455f;border-radius:16px;padding:24px;margin:20px 0}.n{font-size:36px;color:#7ee7ca;font-weight:bold}.file,code{background:#0d1420;padding:5px 9px;border-radius:5px;color:#a5d6ff;overflow-wrap:anywhere}.mock{border:2px solid #506587;background:#101725;padding:18px;border-radius:10px}.row{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}.field{background:#263650;border:1px solid #7890b0;padding:7px 12px;border-radius:5px}.button{background:#247f70;color:white;padding:8px 14px;border-radius:5px}.warn{border-left:5px solid #ffca75;padding-left:16px}a{color:#a5d6ff}small{color:#aebed4}
+</style>
+<main>
+<div class="tag">WINDOWS â€¢ LOCAL APP â€¢ NO TERMINAL COMMANDS NEEDED</div>
+<h1>Get Fishing Helper open<br>in three steps.</h1>
+<p>Use File Explorer to open the folder containing this page. The filenames below are the things to double-click.</p>
+<div class="steps">
+<div class="card"><div class="n">1</div><h2>Install once</h2><div class="file">Setup Fishing Helper.cmd</div><p>Watch the four setup steps. First-time installation needs internet. Success says <b>SETUP COMPLETE</b>.</p><small>If Python is missing, setup opens its official download page. Install Python 3.12, 64-bit, with Python Launcher and Tcl/Tk, then run Setup again.</small></div>
+<div class="card"><div class="n">2</div><h2>Open the app</h2><div class="file">Start Targeting.cmd</div><p>Use this each time. If setup is missing, it runs setup first. No administrator account is normally needed.</p></div>
+<div class="card"><div class="n">3</div><h2>Preview first</h2><div class="file">Mode: dry-run</div><p>This shows detections without moving or clicking. Follow the pictured controls below to select the game.</p></div>
+</div>
+<section><h2>New: choose the window and bobber visually</h2>
+<ol><li>Choose the fishing template profile, then click <b>Select game window</b>. Choose your game. Its number and full capture area are filled in automatically.</li>
+<li>Click <b>Open screenshot / select bobber</b> to use a screenshot you already have. Or click <b>Screenshot in 10s / select bobber</b>, switch to the game and cast.</li>
+<li>Return to the helper after the countdown. Draw a tight box around your bobber on the frozen picture. There is no time limit.</li>
+<li>Click <b>Save bobber template</b>. Start preview in dry-run.</li></ol>
+<p>Neither screenshot option clicks in the game. Pause / Stop cancels a pending countdown. If the game is not in front when the countdown finishes, capture is rejected; you can try again or open a saved picture. <b>Use full game area</b> refreshes the recording area after moving/resizing the game.</p></section>
+<section><h2>What the controls mean</h2>
+<p>This is a simplified diagram of the real app, not a screenshot.</p>
+<div class="mock">
+<div class="row"><span class="field">profile â†’ fishing-v1.json</span><span class="field">hwnd â†’ game window number</span></div>
+<div class="row"><span class="button">Choose profile</span><span class="button">Allowed windows / metadata</span><span class="field">dry-run â–¾</span></div>
+<div class="row"><span class="button">Start preview</span><span class="button">Arm ONE attempt (3s)</span><span class="button">Pause / Stop</span></div>
+<p>Preview picture and detection/error reason appear here.</p>
+</div>
+<ol>
+<li>Open World of Warcraft and keep it visible.</li>
+<li>Click <b>Choose profile</b>. Open <code>configs/tasks/fishing-v1.json</code> from this folder.</li>
+<li>Click <b>Allowed windows / metadata</b>. In the lower text area, find your game's entry under <code>windows</code>. Copy its numeric <code>hwnd</code> into the app's <b>hwnd</b> field. That number identifies this open game window; it can change after restarting the game.</li>
+<li>Keep mode on <b>dry-run</b>. Click <b>Start preview</b>, then bring the game to the front. Return to the helper to inspect its last picture and reason. Foreground capture pauses while the helper is in front.</li>
+</ol>
+<p class="warn"><b>A detector still needs reference images.</b> The template profile expects bobber pictures in <code>images</code>. Those personal images are not shipped in Git. If they are missing, installation can succeed but detection cannot. Do not switch to live input to fix a missing-template error. A neural profile similarly needs an evaluated, approved model; setup does not create one.</p>
+</section>
+<section><h2>Ignore the advanced fields for now</h2>
+<p>For a first preview you only need <b>profile</b>, <b>hwnd</b>, and <b>dry-run</b>. Leave registry at its default. Dataset, session, cast and region are for recording. Config, output, weights and training_run are for training/evaluation. Release and reviewer are for rollback. You do not need to fill them all in to launch.</p>
+<p><b>Pause / Stop</b> stops and disarms the preview. <b>Cancel job</b> stops a running recording/training/evaluation job. Closing the app stops both.</p>
+</section>
+<section><h2>Before trying mouse input</h2>
+<p>Keep dry-run until the preview is correct. Verify movement in the local mouse test first (see the advanced documentation). Then <b>move</b> mode and <b>Arm ONE attempt</b> allow one movement test after a three-second countdown. Focus the selected target window during that countdown. <b>single-click</b> permits one click attempt per arm. It does not mean a fish was caught.</p>
+<p class="warn">This targeting application currently supports preview, recording and one-shot action verification. It does <b>not</b> automatically cast and fish continuously. The installer does not enable the legacy fishing loop or automatically approve models.</p>
+</section>
+<section><h2>If something goes wrong</h2>
+<ul><li><b>Setup failed:</b> rerun Setup; if it still fails, share <code>data/setup.log</code>.</li><li><b>No game listed:</b> open the game, unminimize it, and check that the profile permits its window title and executable.</li><li><b>No preview:</b> check the visible reason; focus the game. Missing templates or weights must be supplied first.</li><li><b>App will not open:</b> rerun Setup to repair its private environment. Your datasets are not removed.</li></ul>
+<p>The default setup uses CPU template detection. GPU training is optional and not installed here. <a href="docs/APPLICATION.md">Advanced application notes</a> Â· <a href="docs/TASK_PROFILES.md">Profiles and model workflow</a></p>
+</section></main></html>

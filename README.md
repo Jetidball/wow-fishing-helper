@@ -181,3 +181,7 @@ See [task profiles and the record-label-train-evaluate-preview workflow](docs/TA
 ## Local targeting application
 
 Inference-only installation, preview, arming, dataset capture, cancellable training and rollback: [Windows application guide](docs/APPLICATION.md).
+
+## Easy Windows setup
+
+Open **START HERE.html** for a visual walkthrough. Double-click **Setup Fishing Helper.cmd** once, then **Start Targeting.cmd** to launch. Setup creates a private .venv-app and never enables live input.

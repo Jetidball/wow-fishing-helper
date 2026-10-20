@@ -1,5 +1,5 @@
 import time, math, sys, os, warnings
-from visual_targeting.input import desktop as pag
+from visual_targeting.input import desktop as pag, Cancelled
 from pynput.keyboard import Listener, Key
 # pywinauto puts the main thread in multithreaded COM mode by default, which makes
 # Windows file dialogs (the GUI's Browse/Add images/Open) hang. Use single-threaded mode instead.
@@ -45,40 +45,29 @@ def get_pole_loc(status=logger.info):
   return l
 
 def get_box(name, status=logger.info):
-  # two corners of a rectangle on screen
-  first = get_single_loc(f"top left corner of the {name}", status)
-  second = get_single_loc(f"bottom right corner of the {name}", status)
-  return [first, second]
+  from visual_targeting.area_picker import request_desktop_area
+  status(f"Screenshot of {name} in 3 seconds. Show the game, then drag a rectangle on the frozen picture.")
+  countdown(3, status)
+  value = request_desktop_area(name, cancelled=pag.cancelled)
+  if value is None:
+    raise Cancelled("Area selection cancelled")
+  return value
+
 
 def get_area_of_interest(status=logger.info):
-  status("Start drawing area of interest in...")
+  from visual_targeting.area_picker import request_desktop_area
+  status("Screenshot in 3 seconds. Show the game, then drag a rectangle around the fishing water.")
   countdown(3, status)
-  status("Hold still 1s to place each point (at least 3), hold on the last point again to finish")
-  points = []
-  last_point = (0,0)
-  last_time = time.time()
-  while True:
-    x, y = pag.position()
-    if(last_point != (x, y)):
-      last_time = time.time()
-    last_point = (x, y)
-    if time.time() - last_time > 1:
-      if points != [] and points[-1] == (x, y):
-        if len(points) > 2:
-          status(f"Area of interest set with {len(points)} points")
-          return [(int(px), int(py)) for px, py in points]
-        else:
-          status("Must draw at least 3 points")
-          last_time = time.time()
-      else:
-        points.append((x, y))
-        last_time = time.time()
-        status(f"Points: {points}")
-    pag.sleep(0.05)
+  value = request_desktop_area("fishing water", polygon=True, cancelled=pag.cancelled)
+  if value is None:
+    raise Cancelled("Area selection cancelled")
+  status(f"Area of interest set with {len(value)} corners")
+  return value
+
 
 def focus_wow_window():
   try:
-    wow = Application().connect(title_re="World of Warcraft.*", found_index=0)
+    wow = Application().connect(title_re="Wow*", found_index=0)
     wow.top_window().set_focus()
   except Exception as e:
     logger.warning(f"Could not focus the World of Warcraft window ({e}), make sure it is in front")

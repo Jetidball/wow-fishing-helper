@@ -114,7 +114,7 @@ def make_detector(profile,registry=None,*,templates=None,weights=None,candidate=
                 if image is not None:
                     edge=cv.Canny(image,100,200)
                     if edge.size and edge.max()!=edge.min():templates.append(edge)
-        if not templates:raise ValueError("no valid task templates")
+        if not templates:raise ValueError(f"No valid bobber PNG templates in {profile.template_path()}. Use Open screenshot / select bobber to create one, then restart preview.")
         return LabeledTemplate(profile,templates)
     offline_weights=weights is not None
     if weights is not None and not candidate:raise ValueError("explicit offline candidate evaluation/preview required for unpromoted weights")

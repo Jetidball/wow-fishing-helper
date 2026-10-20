@@ -1,11 +1,12 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-  echo Create .venv and install dependencies first. See docs\APPLICATION.md.
-  pause
-  exit /b 1
+if not exist ".venv-app\Scripts\python.exe" (
+  call "%~dp0Setup Fishing Helper.cmd"
+  if errorlevel 1 exit /b 1
 )
-set "PYTHONPATH=%~dp0src;%PYTHONPATH%"
-".venv\Scripts\python.exe" -m visual_targeting.app_gui
-if errorlevel 1 pause
+".venv-app\Scripts\python.exe" -m visual_targeting.app_gui
+if errorlevel 1 (
+  echo App could not start. Run Setup Fishing Helper.cmd to repair it.
+  pause
+)

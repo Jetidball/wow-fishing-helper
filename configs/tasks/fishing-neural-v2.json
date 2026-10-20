@@ -19,7 +19,8 @@
       "title": "World of Warcraft*",
       "executables": [
         "Wow.exe",
-        "WowClassic.exe"
+        "WowClassic.exe",
+		"WowB.exe"
       ]
     }
   ],

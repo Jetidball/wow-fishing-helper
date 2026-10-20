@@ -69,22 +69,27 @@ class App():
     self.root.minsize(640, 560)
     self.root.protocol("WM_DELETE_WINDOW", self.cancel)
 
-    nb = ttk.Notebook(self.root)
-    nb.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+    pages = ttk.Notebook(self.root)
+    pages.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+    self.home = ttk.Frame(pages, padding=22)
+    pages.add(self.home, text="Fishing")
+    nb = ttk.Notebook(pages)
+    pages.add(nb, text="Advanced")
     from visual_targeting.app_gui import TargetingPanel
     self.targeting_panel = TargetingPanel(nb)
-    nb.add(self.targeting_panel, text="Visual targeting")
     nb.add(self.timing_tab(nb), text="Timing")
     nb.add(self.humanize_tab(nb), text="Humanize")
     nb.add(self.safety_tab(nb), text="Safety")
-    nb.add(self.session_tab(nb), text="Log out / Log in")
+    nb.add(self.session_tab(nb), text="Session")
     nb.add(self.images_tab(nb), text="Bobber Images")
-    nb.add(self.setup_tab(nb), text="Locations & Fishing")
+    nb.add(self.setup_tab(nb), text="Locations")
     nb.add(self.loot_tab(nb), text="Loot & Overlay")
+    nb.add(self.targeting_panel, text="Developer tools")
+    self.build_home()
 
     bottom = ttk.Frame(self.root)
     bottom.pack(fill="x", padx=8, pady=8)
-    self.status = tk.StringVar(value="Configure the bot, then press Start fishing. While it runs, F9 pauses/resumes and Esc quits.")
+    self.status = tk.StringVar(value="Use Guided setup once, then Start fishing. F9 pauses/resumes; Esc stops.")
     ttk.Label(bottom, textvariable=self.status, wraplength=380).pack(side="left", fill="x", expand=True)
     ttk.Button(bottom, text="Cancel", command=self.cancel).pack(side="right")
     ttk.Button(bottom, text="Start fishing", command=self.start).pack(side="right", padx=4)
@@ -92,6 +97,64 @@ class App():
 
     self.update_states()
     self.root.after(100, self.poll)
+
+  def build_home(self):
+    ttk.Label(self.home, text="Fishing", font=("Segoe UI", 24, "bold")).pack(anchor="w")
+    ttk.Label(self.home, text="One setup. Saved for next time.", font=("Segoe UI", 12)).pack(anchor="w", pady=(0,18))
+    ttk.Label(self.home, text="1. Open WoW at your fishing spot with the Fishing ability visible on your action bar.\n"
+              "2. Enable Auto Loot in WoW. Click Guided setup, switch to WoW and cast.\n"
+              "3. On the frozen picture, mark the water, bobber and Fishing ability. Save, then start.",
+              wraplength=680, justify="left").pack(anchor="w", pady=8)
+    ttk.Button(self.home, text="Guided setup (10-second countdown)", command=self.guided_setup).pack(anchor="w", pady=12)
+    self.ready_text=tk.StringVar()
+    ttk.Label(self.home, textvariable=self.ready_text, wraplength=680).pack(anchor="w", pady=10)
+    self.live_controls=tk.BooleanVar(value=False)
+    ttk.Checkbutton(self.home,text="Enable live game controls when I press Start fishing",
+                    variable=self.live_controls).pack(anchor="w",pady=10)
+    ttk.Label(self.home,text="Unchecked = dry-run, no game input. While fishing: F9 pauses/resumes; Esc stops.\n"
+              "Redo setup if you move/resize the game or change its UI scale. Advanced settings are optional.",
+              wraplength=680,justify="left").pack(anchor="w",pady=10)
+    self.refresh_ready()
+
+  def refresh_ready(self):
+    missing=[]
+    if self.s.area_of_interest is None:missing.append("fishing area")
+    if self.s.cast_location is None:missing.append("Fishing ability")
+    if not self.s.image_files():missing.append("bobber picture")
+    self.ready_text.set("Needs setup: "+", ".join(missing) if missing else "Setup saved. Ready to start fishing.")
+
+  def guided_setup(self):
+    if self.busy:return
+    if not self.collect():return
+    self.busy=True
+    self.targeting_panel.stop()
+    self.root.iconify()
+    def complete(result):
+      self.busy=False;self.root.deiconify()
+      if result is not None:
+        self.s.area_of_interest=result["area_of_interest"]
+        self.s.cast_location=result["cast_location"]
+        # Simple setup uses in-game Auto Loot and no automatic bait/equipment setup.
+        for attr,value in (("auto_loot",True),("attach_bait",False)):
+          getattr(self,"simple_"+attr).set(value)
+          setattr(self.s,attr,value)
+        self.s.save()
+        self.show_loc("area_of_interest");self.show_loc("cast_location")
+        self.refresh_images();self.status.set("Setup saved. Choose dry-run or enable live controls, then Start fishing.")
+      else:self.status.set("Setup cancelled. Previous settings kept.")
+      self.refresh_ready()
+    def tick(seconds):
+      if self.closed.is_set():return
+      if seconds:
+        self.status.set(f"Setup screenshot in {seconds}s. Switch to WoW and cast.")
+        self.setup_timer=self.root.after(1000,lambda:tick(seconds-1))
+      else:
+        try:
+          from visual_targeting.fishing_setup import open_fishing_setup
+          open_fishing_setup(self.root,self.image_dir(),complete)
+        except Exception as exc:
+          complete(None);self.status.set(f"Could not capture setup picture: {exc}")
+    tick(10)
 
   # ---------- field helpers ----------
 
@@ -253,7 +316,7 @@ class App():
     self.check(p, 12, "Zoom to first person after logging in", "relogin_first_person")
     self.note(p, 13, "Logging back in presses Enter on the character select screen that /logout leaves you on. "
                      "The bot never types your password, so it can't log in if the game fully disconnects or you choose Quit. "
-                     "Draw the area of interest with the camera level in first person, so the view matches after a relog.")
+                     "Select a rectangle on a frozen screenshot. Keep the camera level in first person so the view matches after a relog.")
     return p
 
   def images_tab(self, nb):
@@ -301,8 +364,8 @@ class App():
       self.loc_row(p, 2 + i, attr, label)
 
     self.section(p, 8, "Fishing")
-    self.check(p, 9, "Auto loot is on in game", "auto_loot")
-    self.check(p, 10, "Attach bait", "attach_bait")
+    self.simple_auto_loot = self.check(p, 9, "Auto loot is on in game", "auto_loot")
+    self.simple_attach_bait = self.check(p, 10, "Attach bait", "attach_bait")
     self.num(p, 11, "Number of baits", "num_bait", cast=int)
     self.num(p, 12, "Re-bait every", "bait_interval_mins", "minutes", lo=1)
     self.num(p, 13, "Splash sensitivity", "splash_threshold_whitepx", "white pixels needed, lower = more sensitive", cast=int, lo=1)
@@ -386,11 +449,28 @@ class App():
     return False
 
   def start(self):
-    if not self.collect():
+    if self.busy:
+      self.status.set("Finish or cancel setup first.")
       return
-    if not self.s.image_files():
-      messagebox.showerror("No bobber images", "Add at least one bobber image in the Bobber Images tab.", parent=self.root)
+    if not self.collect():return
+    if self.s.area_of_interest is None or self.s.cast_location is None or not self.s.image_files():
+      self.guided_setup()
       return
+    if self.s.attach_bait and (self.s.bait_location is None or self.s.pole_location is None):
+      messagebox.showerror("Bait setup incomplete","Pick bait and pole under Advanced, or turn Attach bait off.",parent=self.root)
+      return
+    if not self.s.auto_loot and self.s.loot_location is None:
+      messagebox.showerror("Loot setup incomplete","Use Guided setup with Auto Loot enabled, or pick the loot location under Advanced.",parent=self.root)
+      return
+    if self.s.logout_mode != "never" and self.s.logout_action == "hearth_logout" and self.s.hearthstone_location is None:
+      messagebox.showerror("Hearthstone setup incomplete","Choose ordinary logout or pick the Hearthstone under Advanced.",parent=self.root)
+      return
+    self.s.load_images()
+    if not self.s.templates:
+      messagebox.showerror("Bobber picture unusable","Run Guided setup to select a clear bobber picture.",parent=self.root)
+      return
+    from visual_targeting.input import desktop, WindowsInput, DryRunInput
+    desktop.configure(WindowsInput() if self.live_controls.get() else DryRunInput())
     self.s.save()
     self.started = True
     self.close()
@@ -455,6 +535,28 @@ class App():
 
   def pick(self, attr, label):
     if self.busy:
+      return
+    if attr == "area_of_interest" or attr in BOX_ATTRS:
+      self.busy = True
+      self.root.iconify()
+      self.status.set("Screenshot in 3 seconds. Show the game; then select a rectangle on the frozen picture.")
+      def finish(value):
+        self.busy = False
+        self.root.deiconify()
+        if value is not None:
+          setattr(self.s, attr, value)
+          self.show_loc(attr)
+          self.status.set("Area selected. Save settings to keep it; reselect after moving/resizing the game.")
+        else:
+          self.status.set("Area selection cancelled; previous setting kept.")
+      def select():
+        try:
+          from visual_targeting.area_picker import pick_desktop_area
+          pick_desktop_area(self.root, label, finish, polygon=attr == "area_of_interest")
+        except Exception as exc:
+          finish(None)
+          self.status.set(f"Area capture failed: {exc}")
+      self.root.after(3000, select)
       return
     self.busy = True
     self.root.iconify()
