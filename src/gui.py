@@ -71,6 +71,9 @@ class App():
 
     nb = ttk.Notebook(self.root)
     nb.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+    from visual_targeting.app_gui import TargetingPanel
+    self.targeting_panel = TargetingPanel(nb)
+    nb.add(self.targeting_panel, text="Visual targeting")
     nb.add(self.timing_tab(nb), text="Timing")
     nb.add(self.humanize_tab(nb), text="Humanize")
     nb.add(self.safety_tab(nb), text="Safety")
@@ -404,6 +407,7 @@ class App():
         continue
 
   def close(self):
+    self.targeting_panel.shutdown()
     self.closed.set()
     self.stop_capture()
     self.root.destroy()

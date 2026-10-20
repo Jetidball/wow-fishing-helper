@@ -177,3 +177,7 @@ See [explicit transforms and local mouse verification](docs/MOUSE_VERIFICATION.m
 ## Versioned task profiles and reviewed models
 
 See [task profiles and the record-label-train-evaluate-preview workflow](docs/TASK_PROFILES.md) for per-task models, allowed classes/windows, click anchors, freshness/outcomes, uncertain review queues and explicit model promotion/rollback. The local confirmation-button demo uses simulated input only.
+
+## Local targeting application
+
+Inference-only installation, preview, arming, dataset capture, cancellable training and rollback: [Windows application guide](docs/APPLICATION.md).
