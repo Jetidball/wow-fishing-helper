@@ -150,3 +150,8 @@ take command and show human-like reactions.
 - Create *better* demo video
 - ~~Create programmatic way to capture new templates~~
 - ~~Settings GUI~~
+
+## Reusable visual targeting
+
+See [architecture and contract documentation](docs/ARCHITECTURE.md) for the
+`visual_targeting` package, fishing task boundary, dry-run input and replay tests.

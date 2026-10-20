@@ -1,5 +1,5 @@
 import time, sys, os
-import pyautogui as pag
+from visual_targeting.input import desktop as pag, Cancelled, DryRunInput
 from bob_finder import search_and_destroy, CAUGHT, NO_BITE, ABORTED
 from setup import initialize, get_single_loc
 from clicker import bait
@@ -51,12 +51,12 @@ def move_state(state):
 
 def attach_bait():
   global time_attached
-  if config.attach_bait and time.time() - time_attached > config.bait_interval_mins * 60 and config.num_bait > 0:
+  if config.attach_bait and time.monotonic() - time_attached > config.bait_interval_mins * 60 and config.num_bait > 0:
     logger.info('Attaching bait...')
     show_ui()
     bait(config)
     config.num_bait = config.num_bait - 1
-    time_attached = time.time()
+    time_attached = time.monotonic()
     hide_ui()
   move_state(pre_cast)
 
@@ -79,7 +79,7 @@ def cast():
   sleep_range(config, config.cast_delay)
   move_to(config, config.cast_location)
   pag.click()
-  cast_time = time.time()
+  cast_time = time.monotonic()
   logger.info("Clicked fishing ability")
   move_state(find_hover_wait)
 
@@ -89,7 +89,7 @@ def find_hover_wait():
   if result == ABORTED:
     move_state(attach_bait)
     return
-  stats.record_cast(result, time.time() - cast_time)
+  stats.record_cast(result, time.monotonic() - cast_time)
   st = stats.snapshot()
   logger.info(f"Catch rate {100 * st['catch_rate']:.0f}% (n={st['casts']}), "
               f"last {st['recent_n']}: {100 * st['recent_catch_rate']:.0f}%")
@@ -120,6 +120,8 @@ def loot_fish():
   move_state(attach_bait)
 
 if __name__ == "__main__":
+  if "--dry-run" in sys.argv:
+    pag.configure(DryRunInput())
   config.load()
   if "--no-gui" not in sys.argv:
     from gui import run_gui
@@ -132,6 +134,11 @@ if __name__ == "__main__":
   if config.show_overlay:
     start_overlay(config, stats)
 
-  while True:
-    safety.wait_if_paused(config)
-    state_func()
+  try:
+    while not pag.cancelled.is_set():
+      safety.wait_if_paused(config)
+      state_func()
+  except (Cancelled, KeyboardInterrupt):
+    logger.info("Fishing cancelled")
+  finally:
+    pag.release_all()

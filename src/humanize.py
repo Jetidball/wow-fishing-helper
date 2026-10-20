@@ -1,11 +1,11 @@
 import time, random, math
-import pyautogui as pag
+from visual_targeting.input import desktop as pag
 from loguru import logger
 
 MAX_FATIGUE = 2.0
 TAKEOVER_PX = 25
 
-fatigue_start = time.time()
+fatigue_start = time.monotonic()
 last_bot_pos = None
 
 def rand_between(rng, distribution="uniform"):
@@ -22,15 +22,15 @@ def rand_between(rng, distribution="uniform"):
 
 def start_fatigue():
   global fatigue_start
-  fatigue_start = time.time()
+  fatigue_start = time.monotonic()
 
 def fatigue_factor(settings):
-  hours = (time.time() - fatigue_start) / 3600
+  hours = (time.monotonic() - fatigue_start) / 3600
   return min(MAX_FATIGUE, 1 + settings.fatigue_pct_per_hour / 100 * hours)
 
 def sleep_range(settings, rng):
   secs = rand_between(rng, settings.timing_distribution) * fatigue_factor(settings)
-  time.sleep(secs)
+  pag.sleep(secs)
   return secs
 
 def _move(x, y, duration):
@@ -67,13 +67,13 @@ def random_point_in_area(settings):
 def random_click(settings):
   logger.info("Humanize: random click")
   move_to(settings, random_point_in_area(settings), use_jitter=False)
-  time.sleep(random.uniform(0.1, 0.4))
+  pag.sleep(random.uniform(0.1, 0.4))
   pag.click()
 
 def jump():
   logger.info("Humanize: jump")
   pag.press('space')
-  time.sleep(random.uniform(0.9, 1.4))
+  pag.sleep(random.uniform(0.9, 1.4))
 
 def sidestep():
   # step one way then the same amount back so the camera ends up (roughly) where it was
@@ -82,9 +82,9 @@ def sidestep():
   logger.info(f"Humanize: sidestep {keys[0]}/{keys[1]} for {hold:.2f}s")
   for key in keys:
     pag.keyDown(key)
-    time.sleep(hold)
+    pag.sleep(hold)
     pag.keyUp(key)
-    time.sleep(random.uniform(0.2, 0.5))
+    pag.sleep(random.uniform(0.2, 0.5))
 
 def mouse_wander(settings):
   logger.info("Humanize: mouse wander")
@@ -93,7 +93,7 @@ def mouse_wander(settings):
     x = random.randint(int(w * 0.15), int(w * 0.85))
     y = random.randint(int(h * 0.15), int(h * 0.85))
     _move(x, y, random.uniform(0.3, 1.0))
-    time.sleep(random.uniform(0.1, 0.6))
+    pag.sleep(random.uniform(0.1, 0.6))
 
 def random_movement(settings):
   actions = []
@@ -111,7 +111,7 @@ def maybe_idle_actions(settings):
   if random.random() < settings.short_break_chance:
     secs = rand_between(settings.short_break_secs, settings.timing_distribution)
     logger.info(f"Humanize: taking a short break for {secs:.0f}s")
-    time.sleep(secs)
+    pag.sleep(secs)
   if random.random() < settings.random_move_chance:
     random_movement(settings)
   if random.random() < settings.random_click_chance:

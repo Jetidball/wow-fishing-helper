@@ -1,5 +1,5 @@
 import time, math, sys, os, warnings
-import pyautogui as pag
+from visual_targeting.input import desktop as pag
 from pynput.keyboard import Listener, Key
 # pywinauto puts the main thread in multithreaded COM mode by default, which makes
 # Windows file dialogs (the GUI's Browse/Add images/Open) hang. Use single-threaded mode instead.
@@ -18,7 +18,7 @@ def distance(p1, p2):
 def countdown(secs, status=logger.info):
   while secs > 0:
     status(str(secs) + "...")
-    time.sleep(1)
+    pag.sleep(1)
     secs = secs - 1
 
 def get_single_loc(name, status=logger.info):
@@ -35,7 +35,7 @@ def get_single_loc(name, status=logger.info):
         return (x, y)
     else:
       start_time = time.time()
-    time.sleep(0.05)
+    pag.sleep(0.05)
     last_point = (x, y)
 
 def get_pole_loc(status=logger.info):
@@ -74,7 +74,7 @@ def get_area_of_interest(status=logger.info):
         points.append((x, y))
         last_time = time.time()
         status(f"Points: {points}")
-    time.sleep(0.05)
+    pag.sleep(0.05)
 
 def focus_wow_window():
   try:
@@ -86,7 +86,8 @@ def focus_wow_window():
 def on_key_release(key):
   if key is Key.esc:
     logger.info("Manual override... Exiting bot!")
-    os._exit(0)
+    pag.cancel()
+    return False
   if key is Key.f9:
     safety.toggle_pause()
 
@@ -131,4 +132,4 @@ def initialize(settings):
   settings.load_images()
   if not settings.templates:
     logger.error("No bobber images found. Add some in the GUI's Bobber Images tab.")
-    os._exit(1)
+    raise RuntimeError("No valid bobber templates")

@@ -1,7 +1,7 @@
 import os, time
 import cv2 as cv
 import numpy as np
-import pyautogui as pag
+from visual_targeting.input import desktop as pag
 try:
   from mss import MSS as mss
 except ImportError:

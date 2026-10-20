@@ -9,7 +9,8 @@ import cv2 as cv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from settings import Settings
-from bob_finder import get_updated_bobber_loc
+from visual_targeting.detector import TemplateDetector
+from visual_targeting.replay import frames
 
 
 def main():
@@ -28,15 +29,15 @@ def main():
     files = sorted(p for p in args.frames.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".bmp"))
     if not files:
         parser.error("no replay frames")
-    for path in files:
-        gray = cv.imread(str(path), cv.IMREAD_GRAYSCALE)
-        if gray is None:
-            parser.error(f"unreadable frame: {path}")
+    detector = TemplateDetector(settings.templates, settings.match_threshold, settings.canny_thresholds)
+    for path, frame in frames(files):
         started = time.perf_counter()
-        edges = cv.Canny(gray, *settings.canny_thresholds)
-        match = get_updated_bobber_loc(settings, edges)
-        print(json.dumps(dict(frame=path.name, target=match,
+        detection = detector.detect(frame)
+        match = detection.legacy() if detection else None
+        print(json.dumps(dict(frame=path.name, target=match, sequence=frame.sequence,
+                              captured_at=frame.captured_at, coordinate_space="screen_pixels",
                               milliseconds=round((time.perf_counter() - started) * 1000, 3))))
+
 
 
 if __name__ == "__main__":

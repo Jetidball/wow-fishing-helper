@@ -7,7 +7,7 @@ except ImportError:
   from mss import mss
 from settings import Settings
 from setup import initialize
-import pyautogui as pag
+from visual_targeting.input import desktop as pag
 from loguru import logger
 
 

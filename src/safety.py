@@ -6,6 +6,7 @@ try:
 except ImportError:
   from mss import mss
 import humanize
+from visual_targeting.input import desktop
 
 # default whisper color in chat, BGR
 WHISPER_BGR = np.array([255, 128, 255])
@@ -42,6 +43,7 @@ def request_pause(reason, with_alert=True):
   pause_reason = reason
   alert = with_alert
   paused.set()
+  desktop.release_all()
 
 def toggle_pause():
   # F9
@@ -73,10 +75,10 @@ def wait_if_paused(settings):
   logger.warning(f"PAUSED ({pause_reason}) Press F9 to resume, Esc to quit.")
   last_beep = 0
   while paused.is_set():
-    if alert and settings.alert_sound and time.time() - last_beep > 15:
+    if alert and settings.alert_sound and time.monotonic() - last_beep > 15:
       beep()
-      last_beep = time.time()
-    time.sleep(0.2)
+      last_beep = time.monotonic()
+    desktop.sleep(0.2)
   logger.info("Resumed")
   reset()
 
@@ -85,9 +87,9 @@ def check_screen(settings, force=False):
   global whisper_baseline, health_baseline, last_check
   if settings.pause_on_mouse_takeover and humanize.user_moved_mouse():
     return "You moved the mouse"
-  if not force and time.time() - last_check < CHECK_INTERVAL:
+  if not force and time.monotonic() - last_check < CHECK_INTERVAL:
     return None
-  last_check = time.time()
+  last_check = time.monotonic()
   with mss() as sct:
     if settings.pause_on_whisper and settings.chat_area:
       n = count_whisper_pixels(np.array(sct.grab(box_monitor(settings.chat_area))))

@@ -56,7 +56,8 @@ class App():
     self.s = settings
     self.started = False
     self.busy = False
-    self.events = queue.Queue()
+    self.events = queue.Queue(maxsize=128)
+    self.closed = threading.Event()
     self.fields = []
     self.capture_listener = None
     self.selected_images = set()
@@ -394,7 +395,16 @@ class App():
   def cancel(self):
     self.close()
 
+  def post_event(self, item):
+    while not self.closed.is_set():
+      try:
+        self.events.put(item, timeout=0.1)
+        return
+      except queue.Full:
+        continue
+
   def close(self):
+    self.closed.set()
     self.stop_capture()
     self.root.destroy()
 
@@ -444,7 +454,7 @@ class App():
       return
     self.busy = True
     self.root.iconify()
-    status = lambda msg: self.events.put(("status", msg))
+    status = lambda msg: self.post_event(("status", msg))
 
     def work():
       focus_wow_window()
@@ -457,7 +467,7 @@ class App():
         value = get_pole_loc(status)
       else:
         value = get_single_loc(label.lower(), status)
-      self.events.put(("picked", (attr, value)))
+      self.post_event(("picked", (attr, value)))
     threading.Thread(target=work, daemon=True).start()
 
   # ---------- images ----------
@@ -543,9 +553,9 @@ class App():
 
     def on_release(key):
       if key == Key.f8:
-        self.events.put(("captured", capture_at_cursor(directory, size)))
+        self.post_event(("captured", capture_at_cursor(directory, size)))
       elif key == Key.esc:
-        self.events.put(("capture_done", None))
+        self.post_event(("capture_done", None))
         return False
 
     self.capture_listener = Listener(on_release=on_release)
