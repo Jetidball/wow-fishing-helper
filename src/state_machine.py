@@ -26,6 +26,14 @@ precast = None
 live_input_enabled = False
 loot_visible_precast = False
 
+def synchronize_input_mode(force_dry_run=False):
+  """GUI and the cast tracker must use the same explicitly selected adapter."""
+  from visual_targeting.input import WindowsInput
+  if force_dry_run:
+    pag.configure(DryRunInput())
+  return isinstance(pag.adapter, WindowsInput)
+
+
 def init():
   logger.info("Initializing")
   initialize(config)
@@ -158,6 +166,10 @@ if __name__ == "__main__":
     if not run_gui(config):
       logger.info("Closed without starting.")
       sys.exit(0)
+
+  # The GUI explicitly selects its input adapter. Use that same choice for bite dispatch.
+  live_input_enabled = synchronize_input_mode(force_dry_run="--dry-run" in sys.argv)
+  logger.info("Fishing input mode: {}", "LIVE (explicitly enabled)" if live_input_enabled else "DRY RUN (no game input)")
 
   stats = Stats(config.running_avg_casts)
   loot = LootTracker(config, stats)

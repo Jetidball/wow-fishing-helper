@@ -58,10 +58,14 @@ class CastTask:
     Candidates are screen-pixel xyxy boxes. A pre-cast snapshot is mandatory for
     ownership inference. Persistence/appearance is evidence, not proof of ownership.
     """
-    def __init__(self, started, precast, policy=None, bite_backend="temporal"):
+    def __init__(self, started, precast, policy=None, bite_backend="temporal", *, acquisition_started=None):
         self.p=policy or Policy()
         if not math.isfinite(started) or started<0: raise ValueError("started")
         if bite_backend not in ("temporal","baseline"): raise ValueError("bite_backend")
+        self.acquire_started=started if acquisition_started is None else acquisition_started
+        if not math.isfinite(self.acquire_started) or self.acquire_started<started:raise ValueError("acquisition_started")
+        self.last_reason="waiting for post-cast evidence";self.observations=0;self.stale_frames=0
+        self.candidate_count=0;self.eligible_count=0;self.excluded_count=0
         self.started=started; self.precast=precast; self.state=State.ACQUIRE
         self.track=None; self.last_seen=started; self.sequence=-1; self.last_capture=-1
         self.hits=0; self.proposed=False; self.click_issued=False; self.outcome=None
@@ -69,6 +73,7 @@ class CastTask:
         self.bite_at=None; self.confirm_at=None; self.reason="waiting for post-cast evidence"
         if precast is None: self.finish("ownership_unknown")
     def finish(self, outcome):
+        self.last_reason=self.reason
         self.state=State.DONE; self.outcome=outcome; self.reason=outcome
     @staticmethod
     def center(box): return ((box[0]+box[2])/2,(box[1]+box[3])/2)
@@ -85,23 +90,27 @@ class CastTask:
             if self.click_issued and catch_confirmed:self.finish("catch_confirmed")
             elif now-self.confirm_at>=self.p.confirm_seconds:self.finish("click_unconfirmed" if self.click_issued else "click_not_issued")
             return None
-        if self.state==State.ACQUIRE and now-self.started>=self.p.acquire_seconds:
+        if self.state==State.ACQUIRE and now-self.acquire_started>=self.p.acquire_seconds:
             self.finish("acquisition_expired");return None
         if self.track is not None and now-self.last_seen>=self.p.lost_seconds:
             self.finish("lost_track");return None
         if frame is None:return None
         if frame.sequence<=self.sequence or frame.captured_at<=self.last_capture or not 0<=now-frame.captured_at<=self.p.max_frame_age:
-            self.reason="stale_frame";return None
+            self.stale_frames+=1;self.reason="stale_frame";return None
         self.sequence=frame.sequence;self.last_capture=frame.captured_at
+        self.observations+=1
         candidates=[list(b) for b in candidates]
+        self.candidate_count=len(candidates)
         for b in candidates:
             if len(b)!=4 or not all(math.isfinite(v) for v in b) or not (frame.bounds.left<=b[0]<b[2]<=frame.bounds.left+frame.bounds.width and frame.bounds.top<=b[1]<b[3]<=frame.bounds.top+frame.bounds.height):
                 raise ValueError("candidate outside screen crop")
         if self.state==State.ACQUIRE:
             options=[b for b in candidates if not any(self.nearby(b,old) for old in self.precast)]
         else:options=[b for b in candidates if self.nearby(b,self.track)]
+        self.eligible_count=len(options)
+        self.excluded_count=len(candidates)-len(options)
         if len(options)!=1:
-            self.reason="ambiguous_target" if options else "missing_target"
+            self.reason="ambiguous_target" if options else "only_precast_targets" if candidates and self.state==State.ACQUIRE else "missing_target"
             self.bite.reset();self.bite_at=None
             if self.state==State.BITE:self.state=State.TRACK
             if self.state==State.ACQUIRE:self.hits=0;self.track=None
@@ -110,7 +119,8 @@ class CastTask:
         if self.state==State.ACQUIRE:
             self.hits=self.hits+1 if self.track is not None and self.nearby(selected,self.track) else 1
         self.track=selected;self.last_seen=now
-        if self.state==State.ACQUIRE and self.hits<self.p.acquire_frames:return None
+        if self.state==State.ACQUIRE and self.hits<self.p.acquire_frames:
+            self.reason=f"confirming_new_bobber {self.hits}/{self.p.acquire_frames}";return None
         if self.state==State.ACQUIRE:self.state=State.TRACK
         x1,y1,x2,y2=selected
         x1,y1=math.floor(x1-frame.bounds.left),math.floor(y1-frame.bounds.top)

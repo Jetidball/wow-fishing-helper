@@ -131,14 +131,19 @@ class FishingTask:
       return bool((stop is not None and stop.is_set()) or guard.paused.is_set() or guard.check_and_pause(settings))
     if stopped():return ABORTED
     started=self.io.get("cast_started")
-    self.machine=CastTask(clock() if started is None else started,self.precast,self.policy or Policy(cast_seconds=settings.cast_timeout,
-                          white_threshold=settings.splash_threshold_whitepx),self.bite_backend)
+    searching=clock()
+    self.machine=CastTask(searching if started is None else started,self.precast,self.policy or Policy(
+                          acquire_seconds=getattr(settings,"acquire_timeout",8.0),cast_seconds=settings.cast_timeout,
+                          white_threshold=settings.splash_threshold_whitepx),self.bite_backend,acquisition_started=searching)
     if self.machine.outcome:return self.machine.outcome
     factory=self.io.get("capture_factory",mss)
     detector=self.detector or TemplateDetector(settings.templates,getattr(settings,"match_threshold",.7),settings.canny_thresholds,clock)
     if not hasattr(detector,"candidates"):raise ValueError("tracked task requires a multi-candidate detector")
     wait=self.io.get("wait_key",cv.waitKey)
-    monitor=settings.get_monitor();sequence=0
+    monitor=settings.get_monitor();sequence=0;last_frame=None;capture_errors=0;last_progress=searching
+    logger.info("Finding bobber: search budget={}s, total cast timeout={}s, threshold={}, templates={}, pre-cast matches={}, area={}",
+                self.machine.p.acquire_seconds,self.machine.p.cast_seconds,getattr(settings,"match_threshold",.7),
+                len(settings.templates),len(self.precast or []),monitor)
     try:
       with factory() as capture:
         while self.machine.state!=State.DONE:
@@ -148,15 +153,24 @@ class FishingTask:
           try:
             frame=Frame(sequence,now,np.array(capture.grab(monitor)),Box(**monitor),"bgra")
           except MSSException.ScreenShotError:
+            capture_errors+=1
             self.machine.update(None,[],now)  # deadlines advance without old pixels
             continue
-          sequence+=1
+          sequence+=1;last_frame=frame
           confirmed=False
           if self.machine.click_issued and self.catch_check:
             try: confirmed=bool(self.catch_check())
             except MSSException.ScreenShotError: pass
           prior=self.machine.state
-          action=self.machine.update(frame,detector.candidates(frame),clock(),catch_confirmed=confirmed)
+          candidates=detector.candidates(frame)
+          observed=clock()
+          action=self.machine.update(frame,candidates,observed,catch_confirmed=confirmed)
+          if self.machine.state==State.ACQUIRE and observed-last_progress>=1:
+            logger.info("Bobber search: {} | matches={} new={} excluded={} confirmed_frames={}/{} frame_age={:.3f}s remaining={:.1f}s",
+                        self.machine.reason,self.machine.candidate_count,self.machine.eligible_count,self.machine.excluded_count,
+                        self.machine.hits,self.machine.p.acquire_frames,observed-frame.captured_at,
+                        max(0,self.machine.p.acquire_seconds-(observed-self.machine.acquire_started)))
+            last_progress=observed
           if self.machine.state!=prior:
             logger.info("Fishing state {} -> {}: {}",prior.value,self.machine.state.value,self.machine.reason)
           if action:
@@ -179,4 +193,13 @@ class FishingTask:
             self.machine.acknowledge_click(accepted is not False,clock())
     finally:
       cv.destroyAllWindows()
+    if self.machine.outcome=="acquisition_expired":
+      from .diagnostics import save_acquisition_report
+      try:
+        report=save_acquisition_report(settings,self.machine,last_frame,capture_errors=capture_errors)
+        logger.warning("Bobber not acquired: {}. Best match={} vs threshold={}; matches={} new={} stale_frames={}. Report: {}",
+                       report["last_reason"],report["best_match_score"],report["match_threshold"],
+                       report["candidate_count"],report["eligible_count"],report["stale_frames"],report["report_path"])
+      except Exception as exc:
+        logger.warning("Could not save acquisition diagnostics: {}",exc)
     return self.machine.outcome

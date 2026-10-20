@@ -53,6 +53,7 @@ class Settings():
     self.loot_delay = (0.3, 0.8)
     self.mouse_move_duration = (0.2, 0.6)
     self.click_jitter_px = 3
+    self.acquire_timeout = 8.0  # seconds of post-wait observation, bounded by cast_timeout
     self.cast_timeout = 30
     self.timing_distribution = "skewed"      # "uniform", "gaussian" or "skewed"
 
@@ -103,6 +104,7 @@ class Settings():
     self.templates = []
 
   def apply(self, data):
+    self.acquire_timeout = float(data.get("acquireTimeout", self.acquire_timeout))
     self.bite_backend = data.get("biteBackend", self.bite_backend)
     self.match_threshold = float(data.get("matchThreshold", self.match_threshold))
     self.attach_bait = data.get("attachBait", self.attach_bait)
@@ -185,6 +187,7 @@ class Settings():
 
   def to_dict(self):
     return {
+      "acquireTimeout": self.acquire_timeout,
       "biteBackend": self.bite_backend,
       "matchThreshold": self.match_threshold,
       "attachBait": self.attach_bait,

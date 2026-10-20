@@ -260,6 +260,7 @@ class App():
     self.rng(p, 5, "Mouse move duration", "mouse_move_duration", "seconds per movement")
     self.num(p, 6, "Click position jitter", "click_jitter_px", "pixels, random offset on every click", cast=int, hi=25)
     self.num(p, 7, "Recast if no splash after", "cast_timeout", "seconds", lo=5, hi=60)
+    self.num(p, 11, "Time to find a new bobber", "acquire_timeout", "seconds of searching, still bounded by cast timeout", lo=1, hi=30)
     self.section(p, 8, "Randomization")
     self.choice(p, 9, "Timing distribution", "timing_distribution", DISTRIBUTIONS)
     self.note(p, 10, "Every delay is picked at random between its min and max each time it is used. "
