@@ -160,3 +160,8 @@ See [architecture and contract documentation](docs/ARCHITECTURE.md) for the
 
 See [dataset collection, labeling, previews and YOLO export](docs/DATASET.md).
 The dataset commands do not load input adapters and cannot click or cast.
+
+## Offline detector experiments
+
+See [pretrained training, held-out evaluation and CPU/GPU benchmarks](docs/TRAINING.md).
+These commands never enable live input.
