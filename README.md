@@ -11,7 +11,54 @@ methods because the fishing bobber has a predicable rotation and the image of th
 pixels in grayscale. Fixed things like fishing bait, fishing pole, loot, and cast action are found by user setup.
 
 ## How to Use
-Install the requirements (`pip install -r src/requirements.txt`), then run `python state_machine.py` from the `src` folder as administrator.
+Use Windows x64 with CPython 3.12. From the repository root in PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe src\state_machine.py
+```
+
+The lockfile pins runtime and transitive dependencies; tests use Python's built-in
+unittest runner. The legacy `src/requirements.txt` entry point uses the same lockfile.
+Tkinter comes with the standard Windows Python installer; Tesseract itself is an
+optional external installation for item OCR. The former committed Python 3.7
+`Lib/`, `Scripts/` and `pyvenv.cfg` are removed from the current tree without
+changing Git history. Create your own ignored `.venv`; do not restore those files.
+
+### CPU baseline replay
+
+Save screenshots cropped to the same search area in a folder, using sortable names
+such as `000001.png`. Templates must be raw bobber crops at the same screen scale.
+Run this from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe tools\replay.py --frames replay\frames --templates images --threshold 0.7 > baseline.jsonl
+```
+
+This runs Canny plus normalized template correlation without capturing the desktop,
+moving the mouse or loading a neural model. Each JSON line contains the frame name,
+accepted target box/center/score (or null) and processing milliseconds. Replay
+coordinates are relative to the cropped frame; live coordinates include its screen
+offset. Use the same frames and templates when comparing changes. Timing varies by
+machine and warm-up; inspect detections as well as latency. No labeled real-game
+replay dataset ships with the repository.
+
+Live matching accepts scores at or above `matchThreshold` (default 0.7 in
+`src/config/config.json`). Empty, constant, corrupt and oversized templates are
+skipped. A frame without an accepted match produces no movement or click. Each frame
+replaces the previous selection, even with a lower score, and the target is
+reacquired after the reaction delay before clicking. Splash brightness still uses
+`splashThresholdWhitePx`; it does not bypass the match threshold. If splashes obscure
+the template completely, the helper safely skips that click; collect representative
+templates and tune the threshold against recorded frames before using it live.
+
+F9 pause/resume, Esc stop, and PyAutoGUI's corner failsafe remain in place.
+The local OpenCV q/Esc control aborts the current cast. Older settings retain their
+image-directory and session-time migration; the new threshold is saved alongside them.
+
 A settings window opens before the helper starts. Everything you set there is saved to `src/config/config.json`
 and loaded the next time. Run `python state_machine.py --no-gui` to skip the window and use the saved config as is.
 

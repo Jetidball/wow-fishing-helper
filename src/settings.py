@@ -38,6 +38,7 @@ class Settings():
     self.hearthstone_location = None
     self.auto_loot = False
     self.img_dir = "../images"
+    self.match_threshold = 0.7  # minimum normalized template confidence, 0..1
     self.splash_threshold_whitepx = 25
     self.canny_thresholds = [80, 180]
     self.attach_bait = False
@@ -101,6 +102,7 @@ class Settings():
     self.templates = []
 
   def apply(self, data):
+    self.match_threshold = float(data.get("matchThreshold", self.match_threshold))
     self.attach_bait = data.get("attachBait", self.attach_bait)
     self.num_bait = data.get("numBait", self.num_bait)
     self.bait_interval_mins = data.get("baitIntervalMins", self.bait_interval_mins)
@@ -181,6 +183,7 @@ class Settings():
 
   def to_dict(self):
     return {
+      "matchThreshold": self.match_threshold,
       "attachBait": self.attach_bait,
       "numBait": self.num_bait,
       "baitIntervalMins": self.bait_interval_mins,
@@ -278,7 +281,11 @@ class Settings():
       if img is None:
         logger.warning(f"Could not read template {f}")
         continue
-      self.templates.append(cv.Canny(cv.cvtColor(img, cv.COLOR_BGR2GRAY), self.canny_thresholds[0], self.canny_thresholds[1]))
+      edges = cv.Canny(cv.cvtColor(img, cv.COLOR_BGR2GRAY), *self.canny_thresholds)
+      if not edges.size or edges.max() == edges.min():
+        logger.warning(f"Skipping blank template {f}")
+        continue
+      self.templates.append(edges)
 
     logger.info(f"Loaded {len(self.templates)} bobber images from {resolve_path(self.img_dir)}")
 
