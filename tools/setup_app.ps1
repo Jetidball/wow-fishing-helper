@@ -44,7 +44,11 @@ try {
     Write-Host '[4/4] Checking the installed app and GUI...'
     & $python (Join-Path $repo 'tools\install_smoke.py') (Join-Path $logDir 'setup-verification.json')
     if ($LASTEXITCODE -ne 0) { throw 'App verification failed. See data\setup.log.' }
-    Write-Host 'SETUP COMPLETE. Use Start Targeting.cmd to open the app.' -ForegroundColor Green
+    if ($Fishing) {
+        Write-Host 'SETUP COMPLETE. Use Start Fishing.cmd to open the fishing app.' -ForegroundColor Green
+    } else {
+        Write-Host 'SETUP COMPLETE. Use Start Targeting.cmd for the developer preview, or Start Fishing.cmd for fishing.' -ForegroundColor Green
+    }
     if (-not $VerifyOnly) { Start-Process (Join-Path $repo 'START HERE.html') }
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

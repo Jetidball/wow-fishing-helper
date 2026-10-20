@@ -2,6 +2,7 @@
 import math
 from pathlib import Path
 import time
+import uuid
 
 def crop_box(start, end, scale, width, height):
     if not math.isfinite(scale) or scale <= 0:
@@ -24,7 +25,7 @@ def save_template(image, box, directory):
     if not edge.size or edge.max()==edge.min():
         raise ValueError('This crop has no usable edges. Select the bobber more closely.')
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
-    path=directory/('bobber-'+str(time.time_ns())+'.png')
+    path=directory/('bobber-'+uuid.uuid4().hex+'.png')
     # Unicode-safe on Windows, and exclusive create prevents overwriting templates.
     ok,encoded=cv.imencode('.png',crop)
     if not ok:raise ValueError('Could not encode template')

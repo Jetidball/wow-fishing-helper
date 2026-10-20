@@ -50,7 +50,7 @@ def training_templates(profile,dataset,data):
         for b in row["annotation"]["boxes"]:
             if b["class_id"]!=target:continue
             x,y=int(b["x"]),int(b["y"]);right,bottom=int(np.ceil(b["x"]+b["width"])),int(np.ceil(b["y"]+b["height"]))
-            template=cv.Canny(image[y:bottom,x:right],100,200)
+            template=cv.Canny(image[y:bottom,x:right],*profile.data["model"].get("canny_thresholds",(100,200)))
             if template.size and np.ptp(template)>0:
                 templates.append(template);sources.append({"frame_id":row["id"],"session_id":row["session_id"]})
             if len(templates)>=16:return templates,sources

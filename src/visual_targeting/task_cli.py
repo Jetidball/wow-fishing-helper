@@ -17,6 +17,7 @@ def main(argv=None):
     parser.add_argument("--registry",type=Path,default=Path("data/model-registry"))
     subs=parser.add_subparsers(dest="command",required=True)
     subs.add_parser("describe")
+    validate=subs.add_parser("validate");validate.add_argument("--dataset",type=Path,required=True)
     subs.add_parser("windows")
     rec=subs.add_parser("record")
     rec.add_argument("--dataset",type=Path,required=True);rec.add_argument("--session",required=True);rec.add_argument("--cast",required=True)
@@ -45,6 +46,9 @@ def main(argv=None):
         if c=="windows":
             from visual_targeting.window_context import allowed_windows
             result={"windows":allowed_windows(profile)}
+        elif c=="validate":
+            data,_=check_dataset(profile,args.dataset,human=True,exported=True)
+            result={"validated":True,"frames":len(data["frames"]),"sessions":len(data["sessions"]),"splits":{part:sum(r["split"]==part for r in data["frames"]) for part in ("train","val","test")}}
         elif c=="describe":result={"profile":profile.data,"sha256":profile.digest}
         elif c=="record":result={"saved":record_task(profile,args.dataset,args.session,args.cast,args.hwnd,args.region,fps=args.fps,duration=args.duration,max_frames=args.max_frames)}
         elif c=="label":result={"updated":label(profile,args.dataset,json.loads(args.annotations.read_text()),args.reviewer)}

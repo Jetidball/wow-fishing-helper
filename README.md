@@ -185,3 +185,5 @@ Inference-only installation, preview, arming, dataset capture, cancellable train
 ## Easy Windows setup
 
 Open **START HERE.html** for a visual walkthrough. Double-click **Setup Fishing Helper.cmd** once, then **Start Targeting.cmd** to launch. Setup creates a private .venv-app and never enables live input.
+
+For normal fishing, double-click **Start Fishing.cmd**. The Fishing home screen has one guided setup using a frozen screenshot; advanced targeting/model controls are not needed. See **START HERE.html**. Live controls require the home-screen checkbox on each launch.

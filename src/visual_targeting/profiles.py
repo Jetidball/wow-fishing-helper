@@ -38,7 +38,10 @@ class Profile:
         for key in ("confidence","review_below","max_frame_age"):
             if type(d[key]) not in (int,float) or not math.isfinite(d[key]):raise ValueError(key)
         if not 0<=d["confidence"]<=d["review_below"]<=1 or not 0<d["max_frame_age"]<=2:raise ValueError("invalid confidence/freshness policy")
-        exact_keys(d["model"],("backend","templates","release","device","imgsz"))
+        model_keys=("backend","templates","release","device","imgsz")
+        exact_keys(d["model"],model_keys+(("canny_thresholds",) if "canny_thresholds" in d["model"] else ()))
+        thresholds=d["model"].get("canny_thresholds",[100,200])
+        if not isinstance(thresholds,list) or len(thresholds)!=2 or not all(type(v) is int for v in thresholds) or not 0<=thresholds[0]<thresholds[1]<=255:raise ValueError("invalid Canny thresholds")
         m=d["model"]
         if m["backend"] not in ("template","neural") or not isinstance(m["templates"],str) or m["release"]!="active" or not isinstance(m["device"],str) or type(m["imgsz"]) is not int or m["imgsz"]<32:raise ValueError("invalid model selection")
         exact_keys(d["outcome"],("kind","value","timeout_seconds"))
@@ -64,7 +67,7 @@ class Profile:
 class LabeledTemplate:
     def __init__(self,profile,templates):
         self.profile=profile
-        self.inner=TemplateDetector(templates,profile.data["confidence"])
+        self.inner=TemplateDetector(templates,profile.data["confidence"],profile.data["model"].get("canny_thresholds",(100,200)))
         self.artifact_sha256=hashlib.sha256(b"".join(t.tobytes()+str(t.shape).encode() for t in templates)).hexdigest()
     def detect(self,frame):
         # The candidate API retains the old detector interface while allowing abstention.
@@ -109,10 +112,10 @@ def make_detector(profile,registry=None,*,templates=None,weights=None,candidate=
     if profile.data["model"]["backend"]=="template":
         if templates is None:
             templates=[]
-            for path in sorted(profile.template_path().glob("*.png")):
+            for path in sorted(p for p in profile.template_path().iterdir() if p.suffix.lower() in (".png",".jpg",".jpeg",".bmp")) if profile.template_path().is_dir() else []:
                 image=cv.imread(str(path),cv.IMREAD_GRAYSCALE)
                 if image is not None:
-                    edge=cv.Canny(image,100,200)
+                    edge=cv.Canny(image,*profile.data["model"].get("canny_thresholds",(100,200)))
                     if edge.size and edge.max()!=edge.min():templates.append(edge)
         if not templates:raise ValueError(f"No valid bobber PNG templates in {profile.template_path()}. Use Open screenshot / select bobber to create one, then restart preview.")
         return LabeledTemplate(profile,templates)

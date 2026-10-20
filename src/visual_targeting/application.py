@@ -10,7 +10,9 @@ import queue
 class Job:
     def __init__(self, directory):
         self.directory=Path(directory);self.process=None;self.stream=None;self.log=None
-    def start(self, arguments):
+    def start(self, arguments, python=None):
+        self.start_python(['-m','visual_targeting.task_cli',*map(str,arguments)],python=python)
+    def start_python(self, arguments, python=None):
         if self.process is not None and self.process.poll() is None:raise ValueError('A job is already running')
         self.directory.mkdir(parents=True,exist_ok=True)
         self.log=self.directory/(time.strftime('%Y%m%d-%H%M%S')+'-'+str(time.time_ns())+'.log')
@@ -18,7 +20,7 @@ class Job:
         options={'creationflags':subprocess.CREATE_NO_WINDOW} if os.name=='nt' else {'start_new_session':True}
         environment=os.environ.copy()
         environment['PYTHONPATH']=str(Path(__file__).resolve().parent.parent)+os.pathsep+environment.get('PYTHONPATH','')
-        try:self.process=subprocess.Popen([sys.executable,'-m','visual_targeting.task_cli',*map(str,arguments)],stdout=self.stream,stderr=subprocess.STDOUT,env=environment,**options)
+        try:self.process=subprocess.Popen([str(python or sys.executable),*map(str,arguments)],stdout=self.stream,stderr=subprocess.STDOUT,env=environment,**options)
         except Exception:self.stream.close();raise
     def status(self):
         if self.process is None:return 'idle'

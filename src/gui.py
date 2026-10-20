@@ -69,22 +69,26 @@ class App():
     self.root.minsize(640, 560)
     self.root.protocol("WM_DELETE_WINDOW", self.cancel)
 
-    pages = ttk.Notebook(self.root)
-    pages.pack(fill="both", expand=True, padx=8, pady=(8, 0))
-    self.home = ttk.Frame(pages, padding=22)
-    pages.add(self.home, text="Fishing")
-    nb = ttk.Notebook(pages)
-    pages.add(nb, text="Advanced")
-    from visual_targeting.app_gui import TargetingPanel
-    self.targeting_panel = TargetingPanel(nb)
+    self.pages = ttk.Notebook(self.root)
+    self.pages.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+    nb = ttk.Notebook(self.pages)
+    self.pages.add(nb, text="Normal fishing")
+    self.home = ttk.Frame(nb, padding=22)
+    nb.add(self.home, text="Start")
     nb.add(self.timing_tab(nb), text="Timing")
     nb.add(self.humanize_tab(nb), text="Humanize")
     nb.add(self.safety_tab(nb), text="Safety")
-    nb.add(self.session_tab(nb), text="Session")
+    nb.add(self.session_tab(nb), text="Log out / Log in")
     nb.add(self.images_tab(nb), text="Bobber Images")
-    nb.add(self.setup_tab(nb), text="Locations")
+    nb.add(self.setup_tab(nb), text="Locations & Fishing")
     nb.add(self.loot_tab(nb), text="Loot & Overlay")
-    nb.add(self.targeting_panel, text="Developer tools")
+    visual = ttk.Frame(self.pages)
+    training = ttk.Frame(self.pages, padding=8)
+    self.pages.add(visual, text="Visual targeting")
+    self.pages.add(training, text="Neural training")
+    from visual_targeting.app_gui import TargetingPanel
+    self.targeting_panel = TargetingPanel(visual,training_parent=training,settings_provider=self.current_fishing_settings)
+    self.targeting_panel.pack(fill="both",expand=True)
     self.build_home()
 
     bottom = ttk.Frame(self.root)
@@ -96,7 +100,10 @@ class App():
     ttk.Button(bottom, text="Save", command=self.save).pack(side="right")
 
     self.update_states()
-    self.root.after(100, self.poll)
+    self.poll_timer = self.root.after(100, self.poll)
+
+  def current_fishing_settings(self):
+    return self.s if self.collect() else None
 
   def build_home(self):
     ttk.Label(self.home, text="Fishing", font=("Segoe UI", 24, "bold")).pack(anchor="w")
@@ -112,7 +119,7 @@ class App():
     ttk.Checkbutton(self.home,text="Enable live game controls when I press Start fishing",
                     variable=self.live_controls).pack(anchor="w",pady=10)
     ttk.Label(self.home,text="Unchecked = dry-run, no game input. While fishing: F9 pauses/resumes; Esc stops.\n"
-              "Redo setup if you move/resize the game or change its UI scale. Advanced settings are optional.",
+              "Redo setup if you move/resize the game or change its UI scale. Your original settings are in the Normal fishing tabs.",
               wraplength=680,justify="left").pack(anchor="w",pady=10)
     self.refresh_ready()
 
@@ -368,6 +375,7 @@ class App():
     self.simple_attach_bait = self.check(p, 10, "Attach bait", "attach_bait")
     self.num(p, 11, "Number of baits", "num_bait", cast=int)
     self.num(p, 12, "Re-bait every", "bait_interval_mins", "minutes", lo=1)
+    self.num(p, 14, "Template match confidence", "match_threshold", "0 to 1", lo=0, hi=1)
     self.num(p, 13, "Splash sensitivity", "splash_threshold_whitepx", "white pixels needed, lower = more sensitive", cast=int, lo=1)
     return p
 
@@ -457,13 +465,13 @@ class App():
       self.guided_setup()
       return
     if self.s.attach_bait and (self.s.bait_location is None or self.s.pole_location is None):
-      messagebox.showerror("Bait setup incomplete","Pick bait and pole under Advanced, or turn Attach bait off.",parent=self.root)
+      messagebox.showerror("Bait setup incomplete","Pick bait and pole in Normal fishing, or turn Attach bait off.",parent=self.root)
       return
     if not self.s.auto_loot and self.s.loot_location is None:
-      messagebox.showerror("Loot setup incomplete","Use Guided setup with Auto Loot enabled, or pick the loot location under Advanced.",parent=self.root)
+      messagebox.showerror("Loot setup incomplete","Use Guided setup with Auto Loot enabled, or pick the loot location in Normal fishing.",parent=self.root)
       return
     if self.s.logout_mode != "never" and self.s.logout_action == "hearth_logout" and self.s.hearthstone_location is None:
-      messagebox.showerror("Hearthstone setup incomplete","Choose ordinary logout or pick the Hearthstone under Advanced.",parent=self.root)
+      messagebox.showerror("Hearthstone setup incomplete","Choose ordinary logout or pick the Hearthstone in Normal fishing.",parent=self.root)
       return
     self.s.load_images()
     if not self.s.templates:
@@ -487,6 +495,10 @@ class App():
         continue
 
   def close(self):
+    for timer in (getattr(self, "poll_timer", None), getattr(self, "setup_timer", None)):
+      if timer:
+        try: self.root.after_cancel(timer)
+        except tk.TclError: pass
     self.targeting_panel.shutdown()
     self.closed.set()
     self.stop_capture()
@@ -513,7 +525,7 @@ class App():
           self.root.deiconify()
     except queue.Empty:
       pass
-    self.root.after(100, self.poll)
+    self.poll_timer = self.root.after(100, self.poll)
 
   # ---------- locations ----------
 
