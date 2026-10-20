@@ -1,0 +1,128 @@
+{
+  "verified_utc": "2026-10-20T02:28:33.450335+00:00",
+  "client_date": "2026-10-19",
+  "method": "user-armed local target window; standard Win32 mouse; no game input",
+  "movement": {
+    "mode": "move",
+    "passed": true,
+    "live_fishing_enabled": false,
+    "hwnd": 43197692,
+    "dpi": 120,
+    "model_point": [
+      132.41379310344828,
+      248.3030303030303
+    ],
+    "crop_point": [
+      120,
+      100
+    ],
+    "desktop_point": [
+      219,
+      289
+    ],
+    "transform_id": "2c628541337d4f6b908f83057a867f24",
+    "canvas_native": {
+      "left": 99,
+      "top": 189,
+      "width": 580,
+      "height": 330
+    },
+    "canvas_tk": [
+      580,
+      330
+    ],
+    "client_native": {
+      "left": 79,
+      "top": 108,
+      "width": 620,
+      "height": 460
+    },
+    "movement_verified": true,
+    "cursor_after": [
+      219,
+      289
+    ],
+    "tk_pointer_after": [
+      219,
+      289
+    ],
+    "canvas_native_after": {
+      "left": 99,
+      "top": 189,
+      "width": 580,
+      "height": 330
+    },
+    "received_movement": {
+      "x": 120,
+      "y": 100
+    },
+    "received_clicks": []
+  },
+  "single_click": {
+    "mode": "single-click",
+    "passed": true,
+    "live_fishing_enabled": false,
+    "hwnd": 114431604,
+    "dpi": 120,
+    "model_point": [
+      132.41379310344828,
+      248.3030303030303
+    ],
+    "crop_point": [
+      120,
+      100
+    ],
+    "desktop_point": [
+      219,
+      289
+    ],
+    "transform_id": "8b4bdd288ac54cc6b313be2dbfc66492",
+    "canvas_native": {
+      "left": 99,
+      "top": 189,
+      "width": 580,
+      "height": 330
+    },
+    "canvas_tk": [
+      580,
+      330
+    ],
+    "client_native": {
+      "left": 79,
+      "top": 108,
+      "width": 620,
+      "height": 460
+    },
+    "movement_verified": true,
+    "cursor_after": [
+      219,
+      289
+    ],
+    "tk_pointer_after": [
+      219,
+      289
+    ],
+    "canvas_native_after": {
+      "left": 99,
+      "top": 189,
+      "width": 580,
+      "height": 330
+    },
+    "received_movement": {
+      "x": 120,
+      "y": 100
+    },
+    "received_clicks": [
+      {
+        "x": 120,
+        "y": 100,
+        "target": 0
+      }
+    ]
+  },
+  "native_tested_dpi": [
+    120
+  ],
+  "other_dpi_and_negative_origins": "automated transform tests only",
+  "continuous_fishing_integrated": false
+}

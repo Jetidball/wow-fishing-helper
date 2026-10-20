@@ -169,3 +169,7 @@ These commands never enable live input.
 ## Bounded fishing and safe default
 
 The application now defaults to dry-run input. See [fishing states and labeled sequence replay](docs/FISHING_SEQUENCE.md) for pre-cast ownership, ambiguity handling, temporal bites, click/catch outcomes, and explicit live opt-in.
+
+## Guarded coordinate and mouse lab
+
+See [explicit transforms and local mouse verification](docs/MOUSE_VERIFICATION.md) for letterboxing, DPI, window invalidation, action gates and separate movement/single-click tests. This adapter is not integrated into continuous fishing.
