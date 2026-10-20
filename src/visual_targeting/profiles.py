@@ -38,6 +38,7 @@ class Profile:
         for key in ("confidence","review_below","max_frame_age"):
             if type(d[key]) not in (int,float) or not math.isfinite(d[key]):raise ValueError(key)
         if not 0<=d["confidence"]<=d["review_below"]<=1 or not 0<d["max_frame_age"]<=2:raise ValueError("invalid confidence/freshness policy")
+        if not isinstance(d["model"],dict):raise ValueError("invalid model selection")
         model_keys=("backend","templates","release","device","imgsz")
         exact_keys(d["model"],model_keys+(("canny_thresholds",) if "canny_thresholds" in d["model"] else ()))
         thresholds=d["model"].get("canny_thresholds",[100,200])

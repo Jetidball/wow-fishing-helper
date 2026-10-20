@@ -207,3 +207,5 @@ or a trained model's accuracy. Native mouse verification remains a separate manu
 procedure in [MOUSE_VERIFICATION.md](MOUSE_VERIFICATION.md).
 
 The checked-in [demo report](verification/local-confirm-v1/report.json), [preview](verification/local-confirm-v1/preview.png) and [outcome](verification/local-confirm-v1/outcome.png) record the passing simulated demonstration and source hashes. No trained-model accuracy claim is implied.
+
+The model object also accepts optional canny_thresholds (two increasing integer thresholds in 0..255); older profiles retain [100,200]. This setting is used consistently when preparing templates, evaluating training-template baselines and preprocessing preview frames. The Normal fishing import copies the existing Settings.canny_thresholds and accepted image types (.png/.jpg/.jpeg/.bmp), preserving original img_dir path resolution. An imported profile is a separate explicit snapshot with a distinct hash.

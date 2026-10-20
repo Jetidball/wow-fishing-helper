@@ -63,7 +63,7 @@ class SettingsBridgeTests(unittest.TestCase):
         from visual_targeting.app_gui import TargetingPanel
         from visual_targeting.experiments import TrainConfig
         root=tk.Tk();root.withdraw()
-        panel=TargetingPanel(root)
+        panel=TargetingPanel(root);root.update()
         try:
             data=self.profile().data;data['model']['backend']='neural'
             with tempfile.TemporaryDirectory() as directory:

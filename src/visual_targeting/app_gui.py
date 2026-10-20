@@ -83,6 +83,7 @@ class TargetingPanel(ttk.Frame):
         buttons(training_parent,[('Rollback approved model',self.rollback)])
         ttk.Label(training_parent,textvariable=self.status,wraplength=850).pack(fill='x')
         self.training_log=tk.Text(training_parent,height=8,wrap='word');self.training_log.pack(fill='both',expand=True)
+        if Path(self.get('config')).is_file():self.guard(self.load_train_config)
         for key in ('profile','registry','hwnd'):
             self.values[key].trace_add('write',lambda *args:self.stop())
         self.bind('<Destroy>',self.destroyed,add='+');self.poll_timer=self.after(150,self.poll)
