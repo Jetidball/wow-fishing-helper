@@ -49,12 +49,12 @@ class Preview:
         self.frames.put_nowait((image,reason))
     def stop(self):
         self.arm_event.clear();self.stop_event.set()
-    def start(self,profile,registry,hwnd,mode='dry-run',*,weights=None,training_run=None,evaluation=None,region=None):
+    def start(self,profile,registry,hwnd,mode='dry-run',*,weights=None,training_run=None,evaluation=None,region=None,collect=None):
         if self.thread and self.thread.is_alive():raise ValueError('Stop the previous preview first')
         if mode not in ('dry-run','move','single-click'):raise ValueError('Invalid mode')
         self.mode=mode;self.action_result='';self.stop_event.clear();self.arm_event.clear()
-        self.thread=threading.Thread(target=self.run,args=(profile,registry,int(hwnd),weights,training_run,evaluation,region),daemon=True);self.thread.start()
-    def run(self,profile,registry,hwnd,weights=None,training_run=None,evaluation=None,region=None):
+        self.thread=threading.Thread(target=self.run,args=(profile,registry,int(hwnd),weights,training_run,evaluation,region,collect),daemon=True);self.thread.start()
+    def run(self,profile,registry,hwnd,weights=None,training_run=None,evaluation=None,region=None,collect=None):
         try:
             import cv2 as cv
             import numpy as np
@@ -71,7 +71,11 @@ class Preview:
             elif weights and self.mode!="dry-run":
                 raise ValueError('Candidate weights allow dry-run preview or evaluated movement-only; clicks require a promoted model.')
             else:detector=make_detector(profile,registry,weights=weights,candidate=weights is not None)
-            session=TaskSession(profile,detector)
+            collector=None
+            if collect:
+                from .improvement import ExampleCollector
+                collector=ExampleCollector(collect,profile,getattr(detector,'artifact_sha256',None))
+            session=TaskSession(profile,detector,queue=collector)
             api=WindowsMouse();transforms=Transforms();mouse=None;deadline=None
             with mss() as capture:
                 sequence=0
@@ -118,6 +122,9 @@ class Preview:
                         else:reason='Arming consumed: '+session.reason
                         self.action_result=reason
                         mouse=None  # Every arm permits one attempt, never a continuous click loop.
+                    if collector:
+                        collector.add(profile,frame,'periodic_sample')
+                        reason+=f' | Review pictures saved: {collector.count}/360'
                     if self.action_result:reason+=' | Last attempt: '+self.action_result
                     self.publish(image,reason);self.stop_event.wait(.1)
         except Exception as exc:self.publish(None,f'{type(exc).__name__}: {exc}')

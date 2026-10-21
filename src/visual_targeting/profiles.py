@@ -82,7 +82,11 @@ class TaskNeuralDetector:
         self.profile=profile
         self.offline_only=True
         if not Path(weights).is_file():raise ValueError("local weights required")
+        self.gpu_required=model_factory is None
+        self.device=profile.data["model"]["device"]
         if model_factory is None:
+            from .gpu import require_gpu
+            self.device=require_gpu("0" if self.device=="cpu" else self.device)
             from ultralytics import YOLO as model_factory
         self.model=model_factory(str(Path(weights).resolve()))
         names=self.model.names
@@ -97,7 +101,8 @@ class TaskNeuralDetector:
         if frame.format=="gray":image=cv.cvtColor(image,cv.COLOR_GRAY2BGR)
         elif frame.format=="bgra":image=cv.cvtColor(image,cv.COLOR_BGRA2BGR)
         # API already returns crop-local boxes; do not invert model letterboxing twice.
-        result=self.model.predict(source=image,device=m["device"],imgsz=m["imgsz"],conf=self.profile.data["confidence"],save=False,show=False,verbose=False)[0]
+        result=self.model.predict(source=image,device=self.device,imgsz=m["imgsz"],conf=self.profile.data["confidence"],save=False,show=False,verbose=False)[0]
+        if self.gpu_required and not str(self.model.predictor.device).startswith("cuda:"):raise RuntimeError("Neural inference left CUDA; CPU fallback is disabled")
         boxes=result.boxes.xyxy.detach().cpu().numpy();scores=result.boxes.conf.detach().cpu().numpy();classes=result.boxes.cls.detach().cpu().numpy()
         selected=[]
         for box,score,kind in zip(boxes,scores,classes):

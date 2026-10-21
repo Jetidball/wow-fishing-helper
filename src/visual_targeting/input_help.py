@@ -20,7 +20,7 @@ HELP={
 'epochs':'Maximum training passes through the data. More passes take longer and do not guarantee better test results.',
 'imgsz':'Model input resolution in pixels. Larger values can preserve small bobbers but use more memory and time.',
 'batch':'Training images processed together. Lower this if memory runs out.',
-'device':'cpu, or a CUDA GPU index such as 0 when available. Automatic training detects usable CUDA support.',
+'device':'CUDA GPU index: 0 or 1. Neural training and inference refuse CPU fallback. Check GPUs shows the actual device names.',
 'mode':'dry-run shows targets only; move permits an armed move; single-click needs an approved model and explicit arming.',
 'allow_download':'Allow downloading official starter weights when training begins. Does not train or activate a model by itself.',
 'cast_delay':'Wait before another cast. The two numbers are minimum and maximum seconds.',

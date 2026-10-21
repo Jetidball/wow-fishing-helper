@@ -62,7 +62,7 @@ class TrainConfig:
     epochs: int = 50
     imgsz: int = 960
     batch: int = 8
-    device: str = "cpu"
+    device: str = "0"
     workers: int = 0
     seed: int = 42
     deterministic: bool = True
@@ -96,6 +96,8 @@ def train(dataset, output, config, *, allow_download=False, model_factory=None):
     if not weights.is_file() and (weights.name != config.model or ":" in config.model):
         raise ValueError("download requires a simple official model filename, e.g. yolo11n.pt")
     if model_factory is None:
+        from .gpu import require_gpu
+        require_gpu(config.device)
         try: from ultralytics import YOLO as model_factory
         except ImportError: raise ValueError("install the optional ml extra in a separate environment") from None
     output = fresh_output(output,dataset)

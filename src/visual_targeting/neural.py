@@ -3,7 +3,7 @@ from pathlib import Path
 import math
 
 class NeuralDetector:
-    def __init__(self, weights, *, device="cpu", imgsz=960, score_floor=.001, model_factory=None):
+    def __init__(self, weights, *, device="0", imgsz=960, score_floor=.001, model_factory=None):
         if not Path(weights).is_file(): raise ValueError("evaluation requires local checkpoint weights")
         if not 0 <= score_floor <= 1 or imgsz <= 0: raise ValueError("invalid neural inference configuration")
         self.device, self.imgsz, self.score_floor = device, imgsz, score_floor
@@ -13,6 +13,8 @@ class NeuralDetector:
                 import torch
                 from ultralytics import YOLO as model_factory
             except ImportError: raise ValueError("install optional ml dependencies for neural inference") from None
+            from .gpu import require_gpu
+            self.device=require_gpu(device,torch)
             self.torch = torch
             if device != "cpu":
                 index = int(device.removeprefix("cuda:"))
@@ -29,6 +31,7 @@ class NeuralDetector:
         # Ultralytics maps letterboxed predictions back into the original input image.
         result = self.model.predict(source=frame.pixels.copy(), device=self.device, imgsz=self.imgsz,
                                     conf=self.score_floor, classes=[0], save=False, show=False, verbose=False)[0]
+        if self.torch is not None and not str(self.model.predictor.device).startswith("cuda:"):raise RuntimeError("Neural inference left CUDA; CPU fallback is disabled")
         boxes = result.boxes.xyxy.detach().cpu().numpy()
         scores = result.boxes.conf.detach().cpu().numpy()
         predictions=[]

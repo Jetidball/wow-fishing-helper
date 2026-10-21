@@ -28,3 +28,5 @@ data/
 
 # Local pretrained and trained neural weights
 *.pt
+
+.venv-gpu/

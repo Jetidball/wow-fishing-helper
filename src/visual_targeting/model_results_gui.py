@@ -5,9 +5,9 @@ from pathlib import Path
 from .model_results import model_results,percent
 
 class ModelResultsPanel(ttk.Frame):
-    def __init__(self,parent,root=Path('.'),on_preview=None):
+    def __init__(self,parent,root=Path('.'),on_preview=None,controller=None):
         super().__init__(parent,padding=12)
-        self.root_path=Path(root);self.on_preview=on_preview;self.rows=[]
+        self.root_path=Path(root);self.on_preview=on_preview;self.rows=[];self.controller=controller
         ttk.Label(self,text='How your trained models are doing',font=('Segoe UI',15,'bold')).pack(anchor='w')
         ttk.Label(self,text='Correct detections = precision (how often it was right). Bobbers found = recall (how many it saw). Higher is better. There is no single overall accuracy percentage.',
                   wraplength=900).pack(anchor='w',pady=4)
@@ -18,9 +18,34 @@ class ModelResultsPanel(ttk.Frame):
         ttk.Button(buttons,text='Open selected model folder',command=self.open_folder).pack(side='left',padx=5)
         if on_preview:
             ttk.Button(buttons,text='Preview selected (no input)',command=self.preview).pack(side='left')
+        from .input_help import InputHint
+        actions=ttk.LabelFrame(self,text='Select a model below, then choose your next step',padding=5)
+        actions.pack(fill='x',pady=4)
+        choices=[
+          ('fill','Auto-fill everything','Fill paths for the selected model and find the game window. No input is sent.'),
+          ('collect','Run & collect improvements','Preview this model on the GPU and save up to 360 new pictures over 30 minutes for HUMAN review. Predictions never become labels automatically. No clicking.'),
+          ('review','Review new pictures','Stop collection and draw correct boxes or mark explicit empty pictures. Suggestions are not training labels.'),
+          ('refine','Refine + test on GPU','Fine-tune the selected checkpoint for 10 passes using newly reviewed visits, then evaluate. Existing validation/test visits stay frozen. Your active model is kept.'),
+          ('move','Move mouse test','Configure an evaluated movement-only test. Press Arm ONE attempt to move to a fresh unique detection. User mouse movement cancels it.'),
+          ('click','Single-click test','Use the selected approved model for one guarded move and left click. This is a targeting test, not a bite click. Explicitly arm each attempt.'),
+          ('fishing','Use selected for fishing','Fill Normal fishing with this approved neural model. Then enable live controls and press Start fishing for bite-aware moves and right clicks.'),
+          ('approve','Review / approve selected','Show test results and approve only if quality thresholds pass. Selecting a model never approves it.'),
+          ('evaluate','Evaluate selected','Fill model and original dataset paths, then run independent testing on the GPU. No retraining or clicking.'),
+          ('arm','Arm ONE attempt (3s)','Arm the configured move or single-click test. Focus WoW within three seconds. Every arm permits one attempt.'),
+          ('stop','STOP / cancel','Disarm input, stop collection/preview and cancel the owned training/evaluation process.'),
+          ('gpu','Check GPUs','Report CUDA runtime, both GPU names and indices in a separate process. No CPU fallback.'),
+          ('install','Install / repair GPU support','Install CUDA PyTorch from the official PyTorch wheel index. Internet and an app restart are required.')]
+        for i,(action,label,hint) in enumerate(choices):
+            button=ttk.Button(actions,text=label,command=lambda a=action:self.action(a))
+            button.grid(row=i//3,column=i%3,sticky='ew',padx=3,pady=3)
+            actions.columnconfigure(i%3,weight=1);InputHint(button,hint)
+        self.activity=tk.StringVar(value='Select a model. Run & collect saves review examples; Review → Refine + test produces a new candidate. Your working model stays unchanged.')
+        self.activity_label=ttk.Label(self,textvariable=self.activity,wraplength=950)
+        self.activity_label.pack(fill='x',pady=4)
+        self.live=ttk.Label(self);self.live.pack()
         table=ttk.Frame(self);table.pack(fill='both',expand=True)
         columns=('model','scope','precision','recall','f1','ap50','verdict')
-        self.tree=ttk.Treeview(table,columns=columns,show='headings',height=9,selectmode='browse')
+        self.tree=ttk.Treeview(table,columns=columns,show='headings',height=5,selectmode='browse')
         headings=['Model','Data used','Correct detections','Bobbers found','F1 balance','mAP50','Readiness']
         for column,label,width in zip(columns,headings,[260,175,125,120,100,90,220]):
             self.tree.heading(column,text=label);self.tree.column(column,width=width,minwidth=70,stretch=column in ('model','verdict'))
@@ -31,13 +56,25 @@ class ModelResultsPanel(ttk.Frame):
         table.rowconfigure(0,weight=1);table.columnconfigure(0,weight=1)
         self.tree.tag_configure('approved',foreground='#147d3d')
         self.tree.tag_configure('pending',foreground='#95601b')
+        InputHint(self.tree,'Select a model row. Correct detections = precision; bobbers found = recall; F1 balances both. A high score on validation alone does not show performance on unseen visits.')
         self.tree.bind('<<TreeviewSelect>>',lambda event:self.show_details())
         self.status=tk.StringVar();ttk.Label(self,textvariable=self.status,wraplength=900).pack(fill='x',pady=5)
         detail=ttk.Frame(self);detail.pack(fill='both',expand=True)
-        self.details=tk.Text(detail,height=11,wrap='word')
+        self.details=tk.Text(detail,height=6,wrap='word')
         scroll=ttk.Scrollbar(detail,command=self.details.yview);self.details.configure(yscrollcommand=scroll.set)
         self.details.pack(side='left',fill='both',expand=True);scroll.pack(side='right',fill='y')
+        for button in buttons.winfo_children():
+            InputHint(button,'Refresh reads saved reports only.' if 'Refresh' in button.cget('text') else 'Open the selected model folder.' if 'folder' in button.cget('text') else 'Preview selected weights without sending mouse input.')
         self.refresh()
+    def action(self,action):
+        if self.controller is None:
+            self.activity.set('Open Model results from the main application to use these controls.');return
+        self.controller.guard(lambda:self.controller.model_action(action,self.selected()))
+    def connect(self,controller):
+        self.controller=controller
+        controller.results_panel=self
+        self.activity=controller.status
+        self.activity_label.configure(textvariable=self.activity)
     def selected(self):
         selection=self.tree.selection()
         return self.rows[int(selection[0])] if selection else None

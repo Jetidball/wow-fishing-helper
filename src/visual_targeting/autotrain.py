@@ -24,7 +24,8 @@ def run(args):
         print('INITIAL CANDIDATE ONLY: no reviewed third session is available for independent held-out testing. No promotion will occur.',flush=True)
     import torch
     torch.set_num_threads(min(8,os.cpu_count() or 1))
-    device='0' if torch.cuda.is_available() else 'cpu'
+    from .gpu import require_gpu
+    device=require_gpu('0',torch)
     print(f'Training device: {device}; epochs={args.epochs}, image size={args.imgsz}, batch={args.batch}. No game input.',flush=True)
     config=TrainConfig(model=args.model,epochs=args.epochs,imgsz=args.imgsz,batch=args.batch,device=device,workers=0)
     checkpoint=train_task(profile,export,output,config,allow_download=args.allow_download)

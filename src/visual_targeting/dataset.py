@@ -262,7 +262,7 @@ def session_splits(sessions, val=.2, test=.1, seed=42):
     nt = min(nt, max(0, n - nv - 1))
     return {s: "val" if i < nv else "test" if i < nv + nt else "train" for i, s in enumerate(sessions)}
 
-def export_yolo(root, output, *, val=.2, test=.1, seed=42):
+def export_yolo(root, output, *, val=.2, test=.1, seed=42, session_assignment=None):
     root, output = Path(root).resolve(), Path(output).resolve()
     if output.exists(): raise ValueError("export directory already exists; use a fresh output directory")
     if output == root or output.is_relative_to(root) or root.is_relative_to(output):
@@ -272,6 +272,10 @@ def export_yolo(root, output, *, val=.2, test=.1, seed=42):
         rows = [r for r in data["frames"] if r["annotation"]["reviewed"]]
         if not rows: raise ValueError("no reviewed frames; label positives or explicit negatives first")
         split = session_splits((r["session_id"] for r in rows), val, test, seed)
+        if session_assignment is not None:
+            if set(session_assignment)!=set(split) or any(v not in ('train','val','test') for v in session_assignment.values()):
+                raise ValueError('Explicit split assignment must cover every reviewed session exactly')
+            split=dict(session_assignment)
         staging = output.with_name(output.name + ".tmp-" + uuid.uuid4().hex)
         try:
             for part in ("train", "val", "test"):

@@ -73,6 +73,7 @@ def evaluate_task(profile,dataset,output,*,weights=None,training_run=None,detect
     report={"schema_version":1,"kind":"task_evaluation","status":"running","task_id":profile.task_id,
         "profile_sha256":profile.digest,"profile":profile.data,"selected_backend":"injected_test" if detector is not None else profile.data["model"]["backend"],"dataset_manifest_sha256":sha(Path(dataset)/"manifest.json"),
         "human_review_sha256":review_sha,"data_review_source":"human","checkpoint_sha256":checkpoint_sha,
+        "test_truth_sha256":hashlib.sha256(json.dumps([{ "id":r["id"],"annotation":r["annotation"]} for r in rows],sort_keys=True).encode()).hexdigest(),
         "split":"test","sessions":sorted({r["session_id"] for r in rows}),"frame_ids":[r["id"] for r in rows],
         "training_provenance_verified":provenance is not None,"template_sources":sources,"backends":{},
         "environment":environment(),"live_input_enabled":False,

@@ -93,6 +93,8 @@ class App():
     self.targeting_panel.pack(fill="both",expand=True)
     from visual_targeting.model_results_gui import ModelResultsPanel
     self.model_results = ModelResultsPanel(self.pages,on_preview=lambda row: self.preview_model(row))
+    self.targeting_panel.use_fishing_callback=self.use_selected_fishing
+    self.model_results.connect(self.targeting_panel)
     self.pages.add(self.model_results,text="Model results")
     self.pages.bind('<<NotebookTabChanged>>',lambda event: self.model_results.refresh() if self.pages.select()==str(self.model_results) else None)
     self.build_home()
@@ -109,6 +111,15 @@ class App():
 
     self.update_states()
     self.poll_timer = self.root.after(100, self.poll)
+
+  def use_selected_fishing(self,info):
+    self.neural_weights_var.set(str(info['weights']))
+    self.neural_profile_var.set(str(info['profile']))
+    self.neural_registry_var.set(self.targeting_panel.get('registry'))
+    self.backend_choice.set('Neural network (approved model for live)')
+    self.pages.select(0)
+    self.pages.nametowidget(self.pages.tabs()[0]).select(0)
+    self.status.set('Approved neural model selected. Enable live game controls, then Start fishing. The fishing loop handles bites and right clicks.')
 
   def preview_model(self,row):
     self.pages.select(1)
@@ -260,6 +271,7 @@ class App():
     var = tk.StringVar(value=current)
     box = ttk.Combobox(parent, textvariable=var, values=labels, state="readonly", width=34)
     self.describe_input(box,attr)
+    if attr=="detector_backend":self.backend_choice=var
     box.grid(row=row, column=1, columnspan=3, sticky="w", padx=(8, 0))
     if command:
       box.bind("<<ComboboxSelected>>", lambda e: command())

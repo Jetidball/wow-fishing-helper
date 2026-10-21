@@ -17,7 +17,7 @@ class TargetingPanel(ttk.Frame):
         self.settings_provider=settings_provider
         self.preview=Preview();self.job=Job(Path.home()/'wow-fishing-helper'/'logs');self.closed=False
         self.values={};self.status=tk.StringVar(value='Stopped. Normal fishing is separate; these tools cannot change its backend.')
-        fields=[('profile',str(Path('configs/tasks/fishing-neural-v2.json').resolve()) if Path('configs/tasks/fishing-neural-v2.json').exists() else ''),('registry','data/model-registry'),('hwnd',''),('dataset','data/dataset'),('session','session-1'),('cast','cast-1'),('region','0 0 640 480'),('config','configs/task-training.json'),('output','runs/task-1'),('release',''),('reviewer',__import__('getpass').getuser()),('weights',''),('training_run',''),('python',sys.executable),('export_output','datasets/fishing-v1')]
+        fields=[('profile',str(Path('configs/tasks/fishing-neural-v2.json').resolve()) if Path('configs/tasks/fishing-neural-v2.json').exists() else ''),('registry','data/model-registry'),('hwnd',''),('dataset','data/dataset'),('session','session-1'),('cast','cast-1'),('region','0 0 640 480'),('config','configs/task-training.json'),('output','runs/task-1'),('release',''),('reviewer',__import__('getpass').getuser()),('weights',''),('training_run',''),('python',str(Path('.venv-gpu/Scripts/python.exe').resolve()) if Path('.venv-gpu/Scripts/python.exe').exists() else sys.executable),('export_output','datasets/fishing-v1')]
         for name,default in fields:self.values[name]=tk.StringVar(value=default)
         try:
             latest=json.loads(Path('data/training-latest.json').read_text())
@@ -32,6 +32,7 @@ class TargetingPanel(ttk.Frame):
             tabs.add(visual,text='Visual targeting');tabs.add(training_parent,text='Neural training')
             from .model_results_gui import ModelResultsPanel
             self.model_results=ModelResultsPanel(tabs,on_preview=lambda row:self.guard(lambda:self.preview_model(row)))
+            self.model_results.connect(self)
             tabs.add(self.model_results,text='Model results')
             tabs.bind('<<NotebookTabChanged>>',lambda event:self.model_results.refresh() if tabs.select()==str(self.model_results) else None)
         else:visual=self
@@ -94,7 +95,7 @@ class TargetingPanel(ttk.Frame):
             '1. RECORD full scenes in Visual targeting. Each visit gets a new session ID; each cast gets a new cast ID. Capture never clicks.\n'
             '2. LABEL bobber boxes on those frames, including empty negative frames. Import your reviewed labels JSON below. Cropped template pictures alone are not a detection dataset.\n'
             '3. EXPORT by session. This keeps neighboring video frames out of the test set and prevents misleading accuracy. Set Dataset to the exported folder afterward.\n'
-            '4. TRAIN from pretrained .pt weights. Epochs = training passes; image size preserves small bobbers; device = cpu or a configured CUDA GPU index such as 0. Training runs in a cancellable child process.\n'
+            '4. TRAIN from pretrained .pt weights. Epochs = training passes; image size preserves small bobbers; device = CUDA GPU index 0 or 1; CPU fallback is disabled. Training runs in a cancellable child process.\n'
             '5. EVALUATE best.pt on held-out sessions and compare with templates. Reports include overlays and errors; training does not activate the model.\n'
             'Normal fishing lets you select Template or Neural network. Live neural use needs explicit review/approval; candidate previews never activate normal fishing.'
         )
@@ -120,12 +121,74 @@ class TargetingPanel(ttk.Frame):
         ttk.Label(training_parent,textvariable=self.status,wraplength=850).pack(fill='x')
         self.training_log=tk.Text(training_parent,height=8,wrap='word');self.training_log.pack(fill='both',expand=True)
         if Path(self.get('config')).is_file():self.guard(self.load_train_config)
+        if self.train_values['device'].get()=='cpu':self.train_values['device'].set('0')
         if self.train_values['model'].get()=='weights/yolo11n.pt' and not Path('weights/yolo11n.pt').exists():
             self.train_values['model'].set('yolo11n.pt')
         for key in ('profile','registry','hwnd'):
             self.values[key].trace_add('write',lambda *args:self.stop())
         self.refresh_training_progress()
         self.bind('<Destroy>',self.destroyed,add='+');self.poll_timer=self.after(150,self.poll)
+    def selected_info(self,row):
+        if row is None:raise ValueError('Select a model in the table first.')
+        from .deployment import candidate_for_run
+        info=candidate_for_run(row['run_dir'],row['evaluation_file'])
+        for key,value in (('profile',info['profile']),('weights',info['weights']),('training_run',info['run'])):self.values[key].set(str(value))
+        return info
+    def original_dataset(self,row):
+        from .experiments import sha
+        wanted=row['run']['dataset_manifest_sha256']
+        for path in Path('datasets').glob('*/manifest.json'):
+            if sha(path)==wanted:return path.parent
+        raise ValueError('Original training dataset is missing or changed. Restore it before refining/evaluating this model.')
+    def model_action(self,action,row):
+        import time,sys
+        if action=='stop':self.stop();self.cancel_job();return
+        if action=='arm':self.arm();return
+        if action=='gpu':
+            self.job.start_python(['-m','visual_targeting.gpu'],python=self.get('python'));self.status.set('Checking CUDA GPUs; see job log. CPU fallback disabled.');return
+        if action=='install':
+            self.stop();self.job.start_python(['tools/setup_gpu.py'],python=self.get('python'))
+            self.status.set('Installing GPU support. Wait for completion, close and reopen the app, then Check GPUs.');return
+        info=self.selected_info(row)
+        if action in ('fill','collect','move','click') and not self.get('hwnd'):
+            from .window_context import allowed_windows
+            windows=allowed_windows(Profile.read(info['profile']))
+            if len(windows)==1:self.values['hwnd'].set(str(windows[0]['window']['hwnd']))
+            else:self.select_window(lambda:self.guard(lambda:self.model_action(action,row)));return
+        if action=='fill':
+            self.values['dataset'].set(str(self.original_dataset(row)));self.use_window_region()
+            self.status.set('Selected model, profile, dataset, run and game area filled. Choose Run & collect or a mouse test.');return
+        if action=='collect':self._preview_candidate(info,collect='data/improvement-examples');return
+        if action=='review':
+            self.stop()
+            if self.preview.thread:self.preview.thread.join(timeout=2)
+            self.values['dataset'].set('data/improvement-examples');self.label_pictures();return
+        if action=='refine':
+            self.stop();output=Path('runs')/('fishing-refined-'+str(time.time_ns()))
+            args=['-u','-m','visual_targeting.improvement','--run',str(info['run']),'--dataset',str(self.original_dataset(row)),
+                  '--new-data','data/improvement-examples','--output',str(output),'--device',self.train_values['device'].get()]
+            self.job.start_python(args,python=self.get('python'));self.status.set('Refine + test started on GPU. Only human-reviewed new visits are used; old test sessions remain frozen.');return
+        if action=='evaluate':
+            self.values['dataset'].set(str(self.original_dataset(row)))
+            self.values['output'].set(str(Path('runs')/('fishing-evaluation-'+str(time.time_ns()))));self.job_command('evaluate');return
+        if action=='approve':self._review_candidate(info);return
+        if action=='move':self._preview_candidate(info,True);return
+        if action=='fishing':
+            active=ModelRegistry(self.get('registry')).active(Profile.read(info['profile']))
+            from .experiments import sha
+            if sha(active['weights_path'])!=row['run']['checkpoint_sha256']:raise ValueError('Approve the selected model first; a different model is active.')
+            callback=getattr(self,'use_fishing_callback',None)
+            if callback:callback(info)
+            else:raise ValueError('Open Start Fishing.cmd, Model results, then Use selected for fishing. This standalone preview app never casts.')
+            return
+        if action=='click':
+            self.stop()
+            active=ModelRegistry(self.get('registry')).active(Profile.read(info['profile']))
+            from .experiments import sha
+            if sha(active['weights_path'])!=row['run']['checkpoint_sha256']:raise ValueError('Approve this selected model first; another model is currently active.')
+            if self.preview.thread:self.preview.thread.join(timeout=1)
+            self.mode.set('single-click');self.start()
+            self.status.set('Single-click test ready. Arm ONE attempt, then focus WoW within 3 seconds. Moves then left-clicks once; catch is not confirmed.');return
     def evaluate_latest(self):
         import time
         from .deployment import latest_candidate
@@ -150,7 +213,7 @@ class TargetingPanel(ttk.Frame):
     def preview_latest(self,movement=False):
         from .deployment import latest_candidate
         self._preview_candidate(latest_candidate(),movement)
-    def _preview_candidate(self,info,movement=False):
+    def _preview_candidate(self,info,movement=False,collect=None):
         self.stop()
         from .window_context import allowed_windows
         profile=Profile.read(info['profile'])
@@ -174,12 +237,14 @@ class TargetingPanel(ttk.Frame):
         self.mode.set('move' if movement else 'dry-run')
         self.preview.start(profile,ModelRegistry(self.get('registry')),self.get('hwnd'),self.mode.get(),
                            weights=str(info['weights']),training_run=str(info['run']),
-                           evaluation=str(info['evaluation']) if info['evaluation'] else None,region=region)
+                           evaluation=str(info['evaluation']) if info['evaluation'] else None,region=region,collect=collect)
         self.status.set('Movement-only test configured. Check the cross, then click Arm ONE attempt and focus WoW within 3 seconds. No click is permitted.' if movement else 'Candidate neural preview loading. Focus WoW; return here to inspect the latest cross. No input.')
     def review_latest_evaluation(self):
         from .deployment import latest_candidate
         from tkinter import messagebox
-        info=latest_candidate()
+        self._review_candidate(latest_candidate())
+    def _review_candidate(self,info):
+        from tkinter import messagebox
         if not info['evaluation']:raise ValueError('No completed matching test report. Evaluate candidate first.')
         profile=Profile.read(info['profile']);report=json.loads(info['evaluation'].read_text())
         metrics=report['backends']['selected'];gates=profile.data['promotion']
@@ -220,7 +285,7 @@ class TargetingPanel(ttk.Frame):
         if data.get('export'):raise ValueError('Select the original recording dataset for automatic preparation.')
         allow_download=messagebox.askyesno('Start training',
             f'Train from {len(reviewed)} reviewed pictures in {sessions} sessions?\n'
-            'This prepares the data automatically, uses CPU or an available CUDA GPU, and trains 5 passes.\n'
+            'This prepares the data automatically, requires CUDA (no CPU fallback), and trains 5 passes.\n'
             'Official starter weights may be downloaded. No game input or model activation occurs.\n'
             +('There is no independent test session yet; this will be an initial candidate.' if sessions==2 else 'An independent test partition will be kept out of fitting.'),parent=self)
         if not allow_download:return
@@ -352,7 +417,7 @@ class TargetingPanel(ttk.Frame):
         self.status.set('Checking reviewed annotations and session splits; no training or game input.')
     def install_training(self):
         self.stop()
-        self.job.start_python(['-m','pip','install','.[training]'],python=self.get('python'))
+        self.job.start_python(['tools/setup_gpu.py'],python=self.get('python'))
         self.status.set('Installing optional training dependencies into the selected Python environment. This does not train or activate a model.')
     def training_guide(self):
         import webbrowser
@@ -365,7 +430,7 @@ class TargetingPanel(ttk.Frame):
     def choose_profile(self):
         path=filedialog.askopenfilename(filetypes=[('Task profile','*.json')])
         if path:self.stop();self.values['profile'].set(path)
-    def select_window(self):
+    def select_window(self,on_selected=None):
         self.stop()
         from .window_context import allowed_windows
         rows=allowed_windows(self.profile())
@@ -380,6 +445,7 @@ class TargetingPanel(ttk.Frame):
             row=rows[listing.curselection()[0]]
             self.values['hwnd'].set(str(row['window']['hwnd']))
             self.use_window_region();top.destroy()
+            if on_selected:on_selected()
         ttk.Button(top,text='Use selected window',command=lambda:self.guard(choose)).pack()
     def use_window_region(self):
         self.stop()
@@ -471,9 +537,18 @@ class TargetingPanel(ttk.Frame):
                 import cv2 as cv
                 h,w=image.shape[:2];image=cv.resize(image,(min(900,w),max(1,round(h*min(900,w)/w))))
                 _,encoded=cv.imencode('.png',image);self.photo=tk.PhotoImage(data=base64.b64encode(encoded.tobytes()));self.image.configure(image=self.photo)
+                if getattr(self,'results_panel',None):
+                    small=cv.resize(image,(min(320,image.shape[1]),max(1,round(image.shape[0]*min(320,image.shape[1])/image.shape[1]))))
+                    _,png=cv.imencode('.png',small);self.results_panel.photo=tk.PhotoImage(data=base64.b64encode(png.tobytes()));self.results_panel.live.configure(image=self.results_panel.photo)
         except queue.Empty:pass
         if self.job.process:
             state=self.job.status()
+            if getattr(self,'results_panel',None):
+                changed=state!=getattr(self,'last_result_job_state',None)
+                if changed:
+                    self.results_panel.refresh()
+                    self.status.set('Job: '+state+' | Log: '+str(self.job.log))
+                self.last_result_job_state=state
             if getattr(self,'pending_export',None) and state=='completed':
                 self.values['dataset'].set(self.pending_export)
                 self.pending_export=None
