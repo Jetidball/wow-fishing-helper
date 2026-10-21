@@ -5,7 +5,7 @@ from pathlib import Path
 import queue
 import tkinter as tk
 from tkinter import ttk,filedialog
-from .application import Job,Preview
+from .application import Job,Preview,log_tail
 from .profiles import Profile
 from .lifecycle import ModelRegistry
 from .input_help import describe,explanation
@@ -140,10 +140,36 @@ class TargetingPanel(ttk.Frame):
         for path in Path('datasets').glob('*/manifest.json'):
             if sha(path)==wanted:return path.parent
         raise ValueError('Original training dataset is missing or changed. Restore it before refining/evaluating this model.')
+    def recommended_step(self,row):
+        if row is None:return None,'Train a first model in Neural training, then select it here.'
+        if row['run'].get('status')!='completed':return None,'This training run is not complete. Open job log to see progress or errors.'
+        from . import dataset as ds
+        base=ds.load(self.original_dataset(row))
+        path=Path('data/improvement-examples/manifest.json')
+        if not path.exists():return 'collect','NEXT: Run & collect improvements. No review pictures have been saved yet.'
+        new=ds.load(path.parent)
+        if new['classes']!=base['classes']:return None,'Review pictures belong to a different class vocabulary. Select the model used to collect them.'
+        existing={r['id'] for r in base['frames']};splits=base['export']['session_splits']
+        eligible=[r for r in new['frames'] if r['id'] not in existing and r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human' and splits.get(r['session_id'],'train')=='train']
+        pending=sum(not r['annotation']['reviewed'] for r in new['frames'])
+        if eligible and not any(r.get('split')=='test' for r in base['frames']):return None,'This baseline has no independent test visit. Train a baseline with three reviewed visits first.'
+        if eligible:return 'refine',f'READY: Refine + test with {len(eligible)} newly reviewed pictures. {pending} pictures still await review.'
+        if pending:return 'review',f'NEXT: Review {pending} pictures. Unreviewed predictions cannot train the model.'
+        if row.get('evaluation') is None:return 'evaluate','NEXT: Evaluate selected model on its independent test visits.'
+        return 'collect','NEXT: Collect more examples. The eligible reviewed pictures are already included in this model.'
     def model_action(self,action,row):
         import time,sys
         if action=='stop':self.stop();self.cancel_job();return
+        if action=='log':
+            import os
+            if not self.job.log or not self.job.log.exists():raise ValueError('No job log yet. Run a GPU check, evaluation or refinement first.')
+            os.startfile(str(self.job.log.resolve()));return
         if action=='arm':self.arm();return
+        if action=='next':
+            action,message=self.recommended_step(row)
+            self.status.set(message)
+            if action:self.model_action(action,row)
+            return
         if action=='gpu':
             self.job.start_python(['-m','visual_targeting.gpu'],python=self.get('python'));self.status.set('Checking CUDA GPUs; see job log. CPU fallback disabled.');return
         if action=='install':
@@ -160,6 +186,7 @@ class TargetingPanel(ttk.Frame):
             self.status.set('Selected model, profile, dataset, run and game area filled. Choose Run & collect or a mouse test.');return
         if action=='collect':self._preview_candidate(info,collect='data/improvement-examples');return
         if action=='review':
+            if not Path('data/improvement-examples/manifest.json').exists():raise ValueError('No pictures to review yet. Click Run & collect improvements, focus WoW, then Stop and Review.')
             self.stop()
             if self.preview.thread:self.preview.thread.join(timeout=2)
             self.values['dataset'].set('data/improvement-examples');self.label_pictures();return
@@ -327,7 +354,10 @@ class TargetingPanel(ttk.Frame):
             if not name:return
             self.values['reviewer'].set(name)
         from .label_gui import open_labeler
-        open_labeler(self,profile,self.get('dataset'),self.get('reviewer'),self.refresh_training_progress)
+        open_labeler(self,profile,self.get('dataset'),self.get('reviewer'),self.review_changed)
+    def review_changed(self):
+        self.refresh_training_progress()
+        if getattr(self,'results_panel',None):self.results_panel.refresh()
     def record_training_session(self):
         import uuid
         self.stop();self.training_profile_default()
@@ -547,7 +577,11 @@ class TargetingPanel(ttk.Frame):
                 changed=state!=getattr(self,'last_result_job_state',None)
                 if changed:
                     self.results_panel.refresh()
-                    self.status.set('Job: '+state+' | Log: '+str(self.job.log))
+                    detail=''
+                    if state.startswith('failed'):
+                        lines=[line.strip() for line in log_tail(self.job.log).splitlines() if line.strip()]
+                        if lines:detail=' | '+lines[-1]
+                    self.status.set('Job: '+state+detail+' | Open job log for details.')
                 self.last_result_job_state=state
             if getattr(self,'pending_export',None) and state=='completed':
                 self.values['dataset'].set(self.pending_export)
@@ -556,10 +590,19 @@ class TargetingPanel(ttk.Frame):
             elif getattr(self,'pending_export',None) and state.startswith('failed'):
                 self.pending_export=None
 
-            text=self.job.log.read_text(encoding='utf-8',errors='replace')[-12000:]
-            for widget in (self.details,self.training_log):
-                widget.delete('1.0','end')
-                widget.insert('end',f'Job: {state}\nLog: {self.job.log}\n{text}')
+            try:
+                stat=self.job.log.stat();signature=(str(self.job.log),stat.st_size,stat.st_mtime_ns,state)
+            except OSError:signature=(str(self.job.log),state)
+            if signature!=getattr(self,'last_log_signature',None):
+                self.last_log_signature=signature
+                text=log_tail(self.job.log)
+                for widget in (self.details,self.training_log):
+                    # Preserve a user's position while they inspect an older part of the tail.
+                    position=widget.yview();follow=not widget.get('1.0','end').strip() or position[1]>=.99
+                    widget.delete('1.0','end')
+                    widget.insert('end',f'Job: {state}\nLog: {self.job.log}\n{text}')
+                    if follow:widget.see('end')
+                    else:widget.yview_moveto(position[0])
         latest=Path('data/training-latest.json')
         if latest.exists():
             try:

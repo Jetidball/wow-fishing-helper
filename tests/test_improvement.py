@@ -75,3 +75,32 @@ class ImprovementTests(unittest.TestCase):
             self.assertEqual(panel.mode.get(),'dry-run')
             self.assertFalse(panel.preview.arm_event.is_set())
         finally:panel.shutdown();root.destroy()
+
+    def test_later_review_from_training_visit_is_used_but_test_visit_is_frozen(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);raw=root/'raw'
+            for session in ('one','two','three'):self.record(raw,session)
+            ds.export_yolo(raw,root/'base');base=ds.load(root/'base')
+            train=next(r for r in base['frames'] if r['split']=='train')['session_id']
+            test=next(r for r in base['frames'] if r['split']=='test')['session_id']
+            def extra(session,cast):
+                capture=MagicMock();capture.__enter__.return_value=capture;capture.grab.return_value=np.full((20,30,4),100,np.uint8)
+                ds.record(raw,session,cast,(0,0,30,20),max_frames=1,capture_factory=lambda:capture)
+                row=ds.load(raw)['frames'][-1];ds.annotate(raw,[{'frame_id':row['id'],'boxes':[]}],reviewer='human');return row['id']
+            allowed=extra(train,'later');excluded=extra(test,'later')
+            result=ds.validate(prepare_refinement(root/'base',raw,root/'refined'))
+            self.assertIn(allowed,[r['id'] for r in result['frames']]);self.assertNotIn(excluded,[r['id'] for r in result['frames']])
+            self.assertEqual(result['export']['session_splits'],base['export']['session_splits'])
+    def test_preview_marker_never_changes_training_pixels(self):
+        from visual_targeting.application import preview_image
+        image=np.zeros((40,40,3),np.uint8)
+        shown=preview_image(image,SimpleNamespace(x=20,y=20),0,0)
+        self.assertTrue(np.any(shown));self.assertFalse(np.any(image))
+        self.assertFalse(np.shares_memory(image,shown))
+    def test_log_tail_is_bounded_and_missing_log_is_readable(self):
+        from visual_targeting.application import log_tail
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'large.log';path.write_bytes(b'x'*100000+b'last error')
+            text=log_tail(path,100)
+            self.assertEqual(len(text),100);self.assertTrue(text.endswith('last error'))
+            self.assertIn('Log unavailable',log_tail(Path(tmp)/'missing'))

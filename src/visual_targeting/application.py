@@ -7,6 +7,21 @@ import threading
 import time
 import queue
 
+def preview_image(pixels,target,left,top):
+    """UI annotations must never enter the source frame used for training."""
+    import cv2 as cv
+    display=pixels.copy()
+    if target:cv.drawMarker(display,(target.x-int(left),target.y-int(top)),(0,255,0),cv.MARKER_CROSS,20,2)
+    return display
+
+def log_tail(path,limit=12000):
+    """Bounded reads even when a training log has grown to gigabytes."""
+    try:
+        with Path(path).open('rb') as stream:
+            stream.seek(0,2);size=stream.tell();stream.seek(max(0,size-limit))
+            return stream.read(limit).decode('utf-8',errors='replace')
+    except OSError as exc:return 'Log unavailable: '+str(exc)
+
 class Job:
     def __init__(self, directory):
         self.directory=Path(directory);self.process=None;self.stream=None;self.log=None
@@ -99,7 +114,7 @@ class Preview:
                     frame=Frame(sequence,captured,image,Box(int(capture_rect.left),int(capture_rect.top),image.shape[1],image.shape[0]),'bgr');sequence+=1
                     target=session.preview(frame,identity,transforms.active,time.monotonic())
                     reason=session.reason
-                    if target:cv.drawMarker(image,(target.x-int(capture_rect.left),target.y-int(capture_rect.top)),(0,255,0),cv.MARKER_CROSS,20,2)
+                    display=preview_image(image,target,capture_rect.left,capture_rect.top)
                     if self.arm_event.is_set():
                         self.arm_event.clear();deadline=time.monotonic()+3;reason='Arming in 3 seconds; focus target and release input'
                     if deadline is not None:
@@ -126,6 +141,6 @@ class Preview:
                         collector.add(profile,frame,'periodic_sample')
                         reason+=f' | Review pictures saved: {collector.count}/360'
                     if self.action_result:reason+=' | Last attempt: '+self.action_result
-                    self.publish(image,reason);self.stop_event.wait(.1)
+                    self.publish(display,reason);self.stop_event.wait(.1)
         except Exception as exc:self.publish(None,f'{type(exc).__name__}: {exc}')
         finally:self.arm_event.clear();self.stop_event.set()

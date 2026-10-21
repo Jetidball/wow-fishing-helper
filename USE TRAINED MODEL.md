@@ -61,3 +61,6 @@ Restart using **Start Fishing.cmd**, then open **Model results** and select a ro
 **Setup GPU.cmd** creates a separate `.venv-gpu` and installs CUDA PyTorch from the official PyTorch wheel index. Both launchers prefer that runtime. Close/reopen the application after installation. **Install / repair GPU support** is also available on Model results. If CUDA is unavailable the job stops with an error. It never starts training on the CPU.
 
 Collected examples live in `data/improvement-examples`; training/evaluation artifacts remain under `runs` and `datasets`. Suggestions, source model hashes, original capture times and crop transforms are saved. Observation IDs are not real game cast IDs; do not interpret their count as measured catch success. Catch confirmation remains separate from click issuance.
+
+
+Model results now shows a recommended next step and **Do recommended next step** button. It never approves or arms input automatically. **Open job log** opens the full worker log; failures also show the final error line. Newly reviewed frames from an existing training visit can be used on the next refinement; old validation/test visits remain frozen.

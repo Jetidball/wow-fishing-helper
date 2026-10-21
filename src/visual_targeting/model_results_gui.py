@@ -22,6 +22,8 @@ class ModelResultsPanel(ttk.Frame):
         actions=ttk.LabelFrame(self,text='Select a model below, then choose your next step',padding=5)
         actions.pack(fill='x',pady=4)
         choices=[
+          ('next','Do recommended next step','Follow the guidance below: collect examples, review pending pictures, refine reviewed data, or evaluate a model. Never approves or arms mouse input automatically.'),
+          ('log','Open job log','Open the full GPU, training or evaluation log for troubleshooting. The GUI displays only a bounded tail to stay responsive.'),
           ('fill','Auto-fill everything','Fill paths for the selected model and find the game window. No input is sent.'),
           ('collect','Run & collect improvements','Preview this model on the GPU and save up to 360 new pictures over 30 minutes for HUMAN review. Predictions never become labels automatically. No clicking.'),
           ('review','Review new pictures','Stop collection and draw correct boxes or mark explicit empty pictures. Suggestions are not training labels.'),
@@ -42,6 +44,8 @@ class ModelResultsPanel(ttk.Frame):
         self.activity=tk.StringVar(value='Select a model. Run & collect saves review examples; Review → Refine + test produces a new candidate. Your working model stays unchanged.')
         self.activity_label=ttk.Label(self,textvariable=self.activity,wraplength=950)
         self.activity_label.pack(fill='x',pady=4)
+        self.next_step=tk.StringVar(value='Select a model to see the recommended next step.')
+        ttk.Label(self,textvariable=self.next_step,wraplength=950,foreground='#17683b').pack(fill='x',pady=4)
         self.live=ttk.Label(self);self.live.pack()
         table=ttk.Frame(self);table.pack(fill='both',expand=True)
         columns=('model','scope','precision','recall','f1','ap50','verdict')
@@ -119,6 +123,9 @@ class ModelResultsPanel(ttk.Frame):
                           'Selecting this row or previewing never activates the model.'])
             self.details.insert('end','\n'.join(lines))
         self.details.configure(state='disabled')
+        if self.controller:
+            try:self.next_step.set(self.controller.recommended_step(row)[1])
+            except (OSError,ValueError,KeyError,TypeError) as exc:self.next_step.set('Needs attention: '+str(exc))
     def open_folder(self):
         import os
         row=self.selected()

@@ -35,15 +35,18 @@ def prepare_refinement(base_dataset,new_data,output):
     """Only new human-reviewed visits enter training. Every existing split stays frozen."""
     base=exported_dataset(base_dataset);new=ds.validate(new_data)
     if new['classes']!=base['classes']:raise ValueError('Review dataset classes differ from selected model')
-    new_rows=[r for r in new['frames'] if r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human' and r['session_id'] not in base['sessions']]
+    existing_ids={r['id'] for r in base['frames']}
+    frozen=base['export']['session_splits']
+    new_rows=[r for r in new['frames'] if r['id'] not in existing_ids and r['annotation']['reviewed'] and r['annotation'].get('review_source')=='human' and frozen.get(r['session_id'],'train')=='train']
     if not new_rows:raise ValueError('No new human-reviewed visits yet. Run & collect, Stop, then Review new pictures. Existing test/validation visits cannot be added to training.')
     output=Path(output)
     if output.exists():raise ValueError('Fresh refinement dataset folder required')
     if not any(r['split']=='test' for r in base['frames']):raise ValueError('Selected model has no independent test visits. Record/label a third visit and train a baseline first.')
-    raw=output.with_name(output.name+'-source');raw.mkdir(parents=True,exist_ok=False)
+    raw=output.with_name(output.name+'-source')
     combined=copy.deepcopy(base);combined.pop('export',None);combined['frames']=[]
     ids={r['id'] for r in base['frames']}
     if any(r['id'] in ids for r in new_rows):raise ValueError('New data reuses existing frame IDs')
+    raw.mkdir(parents=True,exist_ok=False)
     assignment=dict(base['export']['session_splits'])
     for source,rows in ((Path(base_dataset),base['frames']),(Path(new_data),new_rows)):
         for row in rows:
@@ -53,8 +56,10 @@ def prepare_refinement(base_dataset,new_data,output):
             shutil.copyfile(ds.image_path(source,original),destination)
             combined['frames'].append(row)
             if source==Path(new_data):
-                combined['sessions'][row['session_id']]=new['sessions'][row['session_id']]
+                session=combined['sessions'].setdefault(row['session_id'],copy.deepcopy(new['sessions'][row['session_id']]))
+                session['casts'][row['cast_id']]=copy.deepcopy(new['sessions'][row['session_id']]['casts'][row['cast_id']])
                 assignment[row['session_id']]='train'
+    combined['frames'].sort(key=lambda r:(r['session_id'],r['cast_id'],r['sequence']))
     ds.atomic_json(raw/'manifest.json',combined)
     ds.export_yolo(raw,output,session_assignment={r['session_id']:assignment[r['session_id']] for r in combined['frames']})
     return output
