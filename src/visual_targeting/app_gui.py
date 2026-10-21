@@ -8,6 +8,7 @@ from tkinter import ttk,filedialog
 from .application import Job,Preview
 from .profiles import Profile
 from .lifecycle import ModelRegistry
+from .input_help import describe,explanation
 
 class TargetingPanel(ttk.Frame):
     def __init__(self,parent,training_parent=None,settings_provider=None):
@@ -18,11 +19,23 @@ class TargetingPanel(ttk.Frame):
         self.values={};self.status=tk.StringVar(value='Stopped. Normal fishing is separate; these tools cannot change its backend.')
         fields=[('profile',str(Path('configs/tasks/fishing-neural-v2.json').resolve()) if Path('configs/tasks/fishing-neural-v2.json').exists() else ''),('registry','data/model-registry'),('hwnd',''),('dataset','data/dataset'),('session','session-1'),('cast','cast-1'),('region','0 0 640 480'),('config','configs/task-training.json'),('output','runs/task-1'),('release',''),('reviewer',__import__('getpass').getuser()),('weights',''),('training_run',''),('python',sys.executable),('export_output','datasets/fishing-v1')]
         for name,default in fields:self.values[name]=tk.StringVar(value=default)
+        try:
+            latest=json.loads(Path('data/training-latest.json').read_text())
+            if latest.get('status')=='completed':
+                self.values['weights'].set(latest.get('checkpoint',''))
+                self.values['training_run'].set(latest.get('run',''))
+        except (OSError,ValueError,TypeError):pass
+        self.field_help=tk.StringVar(value='Defaults are already filled. Click or hover any input for its description; advanced fields are optional.')
         if training_parent is None:
             tabs=ttk.Notebook(self);tabs.pack(fill='both',expand=True)
             visual=ttk.Frame(tabs);training_parent=ttk.Frame(tabs)
             tabs.add(visual,text='Visual targeting');tabs.add(training_parent,text='Neural training')
+            from .model_results_gui import ModelResultsPanel
+            self.model_results=ModelResultsPanel(tabs,on_preview=lambda row:self.guard(lambda:self.preview_model(row)))
+            tabs.add(self.model_results,text='Model results')
+            tabs.bind('<<NotebookTabChanged>>',lambda event:self.model_results.refresh() if tabs.select()==str(self.model_results) else None)
         else:visual=self
+        ttk.Label(visual,textvariable=self.field_help,wraplength=850,justify='left').pack(fill='x',pady=4)
         training_shell=training_parent
         training_canvas=tk.Canvas(training_shell,highlightthickness=0,height=620)
         training_scroll=ttk.Scrollbar(training_shell,orient='vertical',command=training_canvas.yview)
@@ -33,11 +46,14 @@ class TargetingPanel(ttk.Frame):
         training_parent.bind('<Configure>',lambda event:training_canvas.configure(scrollregion=training_canvas.bbox('all')))
         training_canvas.bind('<Configure>',lambda event:training_canvas.itemconfigure(training_window,width=event.width))
         self.training_parent=training_parent
+        ttk.Label(training_parent,textvariable=self.field_help,wraplength=820,justify='left').pack(fill='x',padx=8,pady=5)
         def fields_on(parent,fields):
             form=ttk.Frame(parent);form.pack(fill='x',pady=4)
             for row,(name,label) in enumerate(fields):
                 ttk.Label(form,text=label).grid(row=row,column=0,sticky='w',padx=4)
-                ttk.Entry(form,textvariable=self.values[name],width=58).grid(row=row,column=1,sticky='ew',padx=4)
+                entry=ttk.Entry(form,textvariable=self.values[name],width=58)
+                entry.grid(row=row,column=1,sticky='ew',padx=4)
+                describe(entry,name,self.values[name].get(),self.field_help.set)
             form.columnconfigure(1,weight=1)
         def buttons(parent,actions):
             row=ttk.Frame(parent);row.pack(fill='x',pady=3)
@@ -54,6 +70,7 @@ class TargetingPanel(ttk.Frame):
         ttk.Button(visual,text='How to use my trained model — step-by-step guide',command=self.use_model_guide).pack(anchor='w')
         self.mode=tk.StringVar(value='dry-run')
         modes=ttk.Combobox(visual,textvariable=self.mode,values=['dry-run','move','single-click'],state='readonly')
+        describe(modes,'mode','dry-run',self.field_help.set)
         modes.pack(anchor='w');modes.bind('<<ComboboxSelected>>',lambda event:self.stop())
         buttons(visual,[('Start preview',self.start),('Arm ONE attempt (3s)',self.arm),('Pause / Stop',self.stop),('Open screenshot / select bobber',self.open_screenshot),('Screenshot in 10s / select bobber',self.delayed_screenshot),('Cancel current job',self.cancel_job)])
         ttk.Label(visual,textvariable=self.status,wraplength=850).pack(fill='x')
@@ -79,7 +96,7 @@ class TargetingPanel(ttk.Frame):
             '3. EXPORT by session. This keeps neighboring video frames out of the test set and prevents misleading accuracy. Set Dataset to the exported folder afterward.\n'
             '4. TRAIN from pretrained .pt weights. Epochs = training passes; image size preserves small bobbers; device = cpu or a configured CUDA GPU index such as 0. Training runs in a cancellable child process.\n'
             '5. EVALUATE best.pt on held-out sessions and compare with templates. Reports include overlays and errors; training does not activate the model.\n'
-            'Normal fishing still uses your existing template/bite/casting loop. Neural weights need explicit review/promotion for neural previews; they are not automatically installed into normal fishing.'
+            'Normal fishing lets you select Template or Neural network. Live neural use needs explicit review/approval; candidate previews never activate normal fishing.'
         )
         helpbox=tk.Text(training_parent,height=10,wrap='word')
         helpbox.insert('1.0',explanation);helpbox.configure(state='disabled');helpbox.pack(fill='x',padx=8)
@@ -91,9 +108,12 @@ class TargetingPanel(ttk.Frame):
         for column,key in enumerate(('model','epochs','imgsz','batch','device')):
             ttk.Label(controls,text=key).grid(row=0,column=column)
             self.train_values[key]=tk.StringVar(value=str(getattr(default,key)))
-            ttk.Entry(controls,textvariable=self.train_values[key],width=24 if key=='model' else 8).grid(row=1,column=column)
+            entry=ttk.Entry(controls,textvariable=self.train_values[key],width=24 if key=='model' else 8)
+            entry.grid(row=1,column=column)
+            describe(entry,key,getattr(default,key),self.field_help.set)
         self.allow_download=tk.BooleanVar(value=False)
-        ttk.Checkbutton(training_parent,text='Allow official pretrained weight download (use a name such as yolo11n.pt)',variable=self.allow_download).pack(anchor='w')
+        download=ttk.Checkbutton(training_parent,text='Allow official pretrained weight download (use a name such as yolo11n.pt)',variable=self.allow_download)
+        download.pack(anchor='w');describe(download,'allow_download',False,self.field_help.set)
         buttons(training_parent,[('Choose neural profile',self.choose_neural_profile),('Import labels JSON (advanced)',self.import_labels),('Export reviewed dataset',self.export_dataset),('Load training config',self.load_train_config),('Check training dataset',self.check_training_data),('Train neural detector',lambda:self.job_command('train')),('Evaluate candidate',lambda:self.job_command('evaluate')),('Install training dependencies',self.install_training),('Cancel training / job',self.cancel_job),('Open training guide',self.training_guide)])
         fields_on(training_parent,[('registry','Model registry'),('release','Previously approved release for rollback')])
         buttons(training_parent,[('Rollback approved model',self.rollback)])
@@ -124,11 +144,15 @@ class TargetingPanel(ttk.Frame):
     def use_model_guide(self):
         import webbrowser
         webbrowser.open((Path.cwd()/'docs/USING-TRAINED-MODEL.html').resolve().as_uri())
+    def preview_model(self,row):
+        from .deployment import candidate_for_run
+        self._preview_candidate(candidate_for_run(row['run_dir'],row['evaluation_file']))
     def preview_latest(self,movement=False):
-        self.stop()
         from .deployment import latest_candidate
+        self._preview_candidate(latest_candidate(),movement)
+    def _preview_candidate(self,info,movement=False):
+        self.stop()
         from .window_context import allowed_windows
-        info=latest_candidate()
         profile=Profile.read(info['profile'])
         self.values['profile'].set(str(info['profile']));self.values['weights'].set(str(info['weights']))
         self.values['training_run'].set(str(info['run']))

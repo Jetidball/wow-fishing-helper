@@ -34,3 +34,10 @@ After a matching independent evaluation passes the configured thresholds:
 Your current evaluated model has 97.1% precision and 68.4% recall. It does not meet the configured automatic-use thresholds. Candidate preview and armed movement-only testing are available; automatic neural fishing remains blocked until a model passes and you approve it.
 
 For the complete illustrated step-by-step guide and troubleshooting, open **docs/USING-TRAINED-MODEL.html**.
+
+
+## Compare your models
+
+Open **Model results** in either launcher. Each row shows correct detections (precision), bobbers found (recall), F1 and mAP50 as percentages. Select a row for more metrics, training settings and file locations. Independent test and last-epoch validation scores are labeled separately; compare identical test comparison groups. Missing scores show a dash. Refresh after training or evaluation finishes. Preview selected never activates a model.
+
+Click or hover over settings inputs to see what each does and its default. Keep prefilled values unless changing a specific setting. Existing normal fishing settings are preserved; candidate model paths fill from the latest completed run. Select game window and Pick still provide values that cannot safely be guessed.

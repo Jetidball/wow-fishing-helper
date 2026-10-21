@@ -49,7 +49,7 @@ class SettingsBridgeTests(unittest.TestCase):
             app=App(settings);app.root.withdraw();app.root.update()
             try:
                 self.assertEqual([app.pages.tab(t,'text') for t in app.pages.tabs()],
-                                 ['Normal fishing','Visual targeting','Neural training'])
+                                 ['Normal fishing','Visual targeting','Neural training','Model results'])
                 self.assertEqual(app.pages.index(app.pages.select()),0)
                 panel=app.targeting_panel
                 with patch('visual_targeting.settings_bridge.import_fishing_settings',return_value=(Path(root)/'profile.json','1 2 3 4',{'source':'normal'})):

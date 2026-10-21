@@ -26,7 +26,9 @@ def open_labeler(parent,profile,dataset,reviewer,on_change=None):
     ttk.Label(top,textvariable=title,font=('Segoe UI',11,'bold')).pack()
     ttk.Label(top,text='Draw tight boxes around ALL visible bobbers, including other players. Skip uncertain pictures.').pack()
     ttk.Label(top,text='Exclude splash spray, ripples and fishing line. A negative means no object of ANY listed class is visible.').pack()
-    ttk.Combobox(top,textvariable=chosen,values=data['classes'],state='readonly').pack(anchor='w')
+    from .input_help import describe
+    classes=ttk.Combobox(top,textvariable=chosen,values=data['classes'],state='readonly')
+    classes.pack(anchor='w');describe(classes,'class',chosen.get())
     canvas=tk.Canvas(top,highlightthickness=0);canvas.pack()
     ttk.Label(top,textvariable=message,wraplength=900).pack()
     state={'index':0,'boxes':[]}

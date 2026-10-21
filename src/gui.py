@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import cv2 as cv
 from pynput.keyboard import Key, Listener
-from settings import resolve_path, IMAGE_EXTS
+from settings import resolve_path, IMAGE_EXTS, Settings
 from setup import get_single_loc, get_pole_loc, get_area_of_interest, get_box, focus_wow_window
 from template_capture import capture_at_cursor
 
@@ -69,6 +69,8 @@ class App():
     self.root.minsize(640, 560)
     self.root.protocol("WM_DELETE_WINDOW", self.cancel)
 
+    self.defaults = Settings()
+    self.field_help = tk.StringVar(value="Click or hover over any input to see what it does and its default.")
     self.pages = ttk.Notebook(self.root)
     self.pages.pack(fill="both", expand=True, padx=8, pady=(8, 0))
     nb = ttk.Notebook(self.pages)
@@ -89,7 +91,13 @@ class App():
     from visual_targeting.app_gui import TargetingPanel
     self.targeting_panel = TargetingPanel(visual,training_parent=training,settings_provider=self.current_fishing_settings)
     self.targeting_panel.pack(fill="both",expand=True)
+    from visual_targeting.model_results_gui import ModelResultsPanel
+    self.model_results = ModelResultsPanel(self.pages,on_preview=lambda row: self.preview_model(row))
+    self.pages.add(self.model_results,text="Model results")
+    self.pages.bind('<<NotebookTabChanged>>',lambda event: self.model_results.refresh() if self.pages.select()==str(self.model_results) else None)
     self.build_home()
+    self.describe_remaining_inputs(self.root)
+    ttk.Label(self.root,textvariable=self.field_help,wraplength=850,justify="left").pack(fill="x",padx=12,pady=5)
 
     bottom = ttk.Frame(self.root)
     bottom.pack(fill="x", padx=8, pady=8)
@@ -101,6 +109,29 @@ class App():
 
     self.update_states()
     self.poll_timer = self.root.after(100, self.poll)
+
+  def preview_model(self,row):
+    self.pages.select(1)
+    self.targeting_panel.guard(lambda:self.targeting_panel.preview_model(row))
+
+  def describe_input(self,widget,attr):
+    from visual_targeting.input_help import describe
+    describe(widget,attr,getattr(self.defaults,attr,None),self.field_help.set)
+
+  def describe_remaining_inputs(self,parent):
+    from visual_targeting.input_help import InputHint
+    variables={}
+    for name in ('img_dir','capture_size','loot_dir','tesseract','neural_weights_var','neural_profile_var','neural_registry_var'):
+      value=getattr(self,name,None)
+      if value is not None:variables[str(value)]={'tesseract':'tesseract_cmd'}.get(name,name.removesuffix('_var'))
+    for widget in parent.winfo_children():
+      if isinstance(widget,(ttk.Entry,ttk.Combobox,ttk.Checkbutton,ttk.Radiobutton)) and not hasattr(widget,'input_description'):
+        attr=variables.get(str(widget.cget('textvariable'))) if isinstance(widget,(ttk.Entry,ttk.Combobox)) else None
+        if attr:self.describe_input(widget,attr)
+        elif isinstance(widget,ttk.Radiobutton):self.describe_input(widget,'logout_action')
+        elif isinstance(widget,ttk.Checkbutton):self.describe_input(widget,'live_controls')
+        else:InputHint(widget,'Enter the value shown by the adjacent label. Keep the prefilled value unless changing this setting.',self.field_help.set)
+      self.describe_remaining_inputs(widget)
 
   def current_fishing_settings(self):
     return self.s if self.collect() else None
@@ -181,6 +212,7 @@ class App():
     ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=3)
     var = tk.StringVar(value=fmt(cast(getattr(self.s, attr) * scale)))
     entry = ttk.Entry(parent, textvariable=var, width=8)
+    self.describe_input(entry,attr)
     entry.grid(row=row, column=1, sticky="w", padx=(8, 0))
     ttk.Label(parent, text=unit, foreground="gray").grid(row=row, column=3, sticky="w", padx=8)
 
@@ -196,8 +228,10 @@ class App():
     a, b = getattr(self.s, attr)
     va, vb = tk.StringVar(value=fmt(float(a))), tk.StringVar(value=fmt(float(b)))
     ea = ttk.Entry(parent, textvariable=va, width=8)
+    self.describe_input(ea,attr)
     ea.grid(row=row, column=1, sticky="w", padx=(8, 0))
     eb = ttk.Entry(parent, textvariable=vb, width=8)
+    self.describe_input(eb,attr)
     eb.grid(row=row, column=2, sticky="w", padx=(4, 0))
     ttk.Label(parent, text=unit, foreground="gray").grid(row=row, column=3, sticky="w", padx=8)
 
@@ -214,6 +248,7 @@ class App():
   def check(self, parent, row, label, attr, command=None):
     var = tk.BooleanVar(value=bool(getattr(self.s, attr)))
     cb = ttk.Checkbutton(parent, text=label, variable=var, command=command)
+    self.describe_input(cb,attr)
     cb.grid(row=row, column=0, columnspan=4, sticky="w", pady=3)
     self.fields.append((attr, var.get))
     return var
@@ -224,6 +259,7 @@ class App():
     current = dict(options).get(getattr(self.s, attr), labels[0])
     var = tk.StringVar(value=current)
     box = ttk.Combobox(parent, textvariable=var, values=labels, state="readonly", width=34)
+    self.describe_input(box,attr)
     box.grid(row=row, column=1, columnspan=3, sticky="w", padx=(8, 0))
     if command:
       box.bind("<<ComboboxSelected>>", lambda e: command())
