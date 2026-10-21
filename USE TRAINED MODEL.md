@@ -64,3 +64,25 @@ Collected examples live in `data/improvement-examples`; training/evaluation arti
 
 
 Model results now shows a recommended next step and **Do recommended next step** button. It never approves or arms input automatically. **Open job log** opens the full worker log; failures also show the final error line. Newly reviewed frames from an existing training visit can be used on the next refinement; old validation/test visits remain frozen.
+
+
+## Teach missed bobbers while using the model
+
+On **Model results**, select your model and press **Teach missed bobbers while running**. This runs neural preview without game input. After a sustained failed search, a frozen picture opens. Draw a tight square/rectangle around every visible bobber and press **Save correction & continue**. The preview resumes on a fresh frame. Use **No bobber here & continue** only if no listed objects are visible; **Skip** saves nothing. **Stop teaching** stops prompting. Input remains disarmed during correction.
+
+For actual fishing, select an approved neural model and enable **Ask me to box missed bobbers while fishing (neural teaching)** on Normal fishing → Start. Each expired acquisition asks for a correction before the next cast. The fishing loop sends no input while the correction window is open. Focus WoW after saving; press F9 if the existing mouse-takeover protection paused fishing. Esc still stops the normal fishing loop.
+
+Every five saved corrections request a background GPU refinement and held-out evaluation. **Train now in background** starts sooner using corrections already saved. Save the current box before requesting training if you want it included. The current model keeps running; a busy trainer does not discard later corrections. Those corrections can enter the next run. Background teaching uses the other GPU on this two-GPU machine. Errors never trigger CPU fallback.
+
+Corrections are human-reviewed examples in `data/improvement-examples`, with the source model hash, visit ID, timing and crop transforms. Existing validation/test visits stay frozen. New candidates appear in Model results; compare and explicitly approve one before using it for live fishing. Accuracy improvement is measured, not guaranteed. The currently loaded weights do not change mid-cast. Normal fishing teaching logs are under `data/teaching-logs`.
+
+All buttons, including screenshot selectors and labeling dialogs, now have hover/focus help. Teaching is opt-in and saved with normal settings; older settings files default to teaching off.
+
+
+## Auto-fill for live fishing and error tracking
+
+In the **Start Fishing.cmd** app, select the desired model on **Model results** and press **Auto-fill everything**. This now configures Normal fishing as well as preview: neural backend, the exact training profile, an absolute registry path and matching approved weights. It checks the selected WoW window, saved water rectangle and Fishing action-bar point. **LIVE SETUP READY** means you can enable live game controls and press Start fishing. **LIVE SETUP BLOCKED** lists what must be fixed. Auto-fill does not approve a failed model or enable input automatically. Missing original training data blocks retraining, but does not block inference from an otherwise valid approved model.
+
+The standalone Start Targeting launcher remains a preview/teaching application; it tells you to use Start Fishing for live fishing. Reused output folders are replaced with unique new output names for GUI training/evaluation retries. Refine checks for eligible reviewed corrections before launching a job.
+
+**Open error history** opens `data/logs/application-errors.jsonl`: timestamps, error IDs, action, relevant paths and traceback. GUI callback errors, failed previews, failed worker jobs, blocked live setup and fatal fishing errors are recorded. Logs rotate at 2 MB with three backups. **Open job log** still opens the detailed worker output. Normal fishing writes rotating logs under `data/logs/fishing-*.log`. Previously observed output-folder and missing-review errors have also been imported into the history.

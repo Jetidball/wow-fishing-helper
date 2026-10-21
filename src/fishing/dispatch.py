@@ -12,6 +12,7 @@ class FishingDispatch:
     def __init__(self,settings,cancelled,profile,*,api=None,probe=query_window,button="right"):
         self.settings=settings;self.button=button;self.api=api or (WindowsMouse() if button=="left" else RightMouse())
         hwnd=self.api.foreground()
+        if getattr(settings,"neural_window_hwnd",0) and hwnd!=settings.neural_window_hwnd:raise ValueError("Focus the exact WoW window selected by Auto-fill before fishing.")
         identity,client,_=probe(hwnd)
         if not profile.allows(identity):raise ValueError('Fishing game is not foreground or not allowed by the selected profile')
         self.geometry=self.api.geometry(hwnd)
@@ -49,7 +50,9 @@ def click_fishing_ability(settings,cancelled,profile):
     from types import SimpleNamespace
     from visual_targeting.contracts import Frame,Box
     api=WindowsMouse()
-    identity,client,_=query_window(api.foreground())
+    hwnd=api.foreground()
+    if getattr(settings,"neural_window_hwnd",0) and hwnd!=settings.neural_window_hwnd:raise ValueError("Focus the exact WoW window selected by Auto-fill before casting.")
+    identity,client,_=query_window(hwnd)
     if not profile.allows(identity):raise ValueError('WoW must be foreground before casting')
     roi=Rect(**settings.get_monitor())
     if not client.encloses(roi):raise ValueError('Fishing area no longer lies inside the game. Pick it again.')

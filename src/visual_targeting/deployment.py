@@ -20,11 +20,18 @@ def candidate_for_run(run_dir,evaluation=None,root=Path('.')):
     weights=Path(run.get('checkpoint',run_dir/'fit/weights/best.pt'))
     if run.get('status')!='completed' or not weights.is_file() or sha(weights)!=run['checkpoint_sha256']:
         raise ValueError('Completed, unchanged trained weights required')
+    if Profile(run['profile']).digest!=run['profile_sha256']:raise ValueError('Training profile snapshot changed; restore the original run metadata.')
+    def matches(path):
+        try:return Profile.read(path).digest==run['profile_sha256']
+        except (OSError,ValueError,KeyError,TypeError):return False
     profile=root/'configs/tasks/fishing-neural-v2.json'
-    if not profile.exists() or Profile.read(profile).digest!=run['profile_sha256']:
+    if not matches(profile):
         profile=root/'data/profiles'/('trained-'+run['profile_sha256'][:16]+'.json')
         profile.parent.mkdir(parents=True,exist_ok=True)
-        if not profile.exists():profile.write_text(json.dumps(run['profile'],indent=2))
+        if profile.exists() and not matches(profile):
+            import uuid
+            profile=profile.with_name(profile.stem+'-'+uuid.uuid4().hex[:8]+'.json')
+        if not profile.exists():profile.write_text(json.dumps(run['profile'],indent=2),encoding='utf-8')
     result={'weights':weights.resolve(),'run':run_dir.resolve(),'profile':profile.resolve(),'evaluation':None}
     if evaluation and Path(evaluation).is_file():
         report_path=Path(evaluation)

@@ -65,6 +65,8 @@ def pick_desktop_area(parent,label,on_done,polygon=False,point=False):
     top.protocol('WM_DELETE_WINDOW',lambda:finish(None))
     top.bind('<Escape>',lambda event:finish(None))
     top.lift();top.focus_set()
+    from .input_help import install_button_help
+    install_button_help(top)
     return top
 
 

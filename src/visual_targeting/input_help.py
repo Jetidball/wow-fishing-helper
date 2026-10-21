@@ -1,6 +1,7 @@
 """Plain-language input explanations shared by normal and neural tools."""
 import tkinter as tk
 HELP={
+'teach_on_miss':'After each failed neural bobber search, pause and show a frozen frame for human boxes. Save corrections and continue; every five corrections request GPU refinement in the background. Current weights stay loaded. F9 resumes takeover pauses.',
 'profile':'Rules for the detector: permitted game, classes, confidence and model identity. The latest-model buttons fill this.',
 'registry':'Folder holding explicitly approved model releases. Leave the default unless moving your model library.',
 'hwnd':'Windows ID of the game window. Use Select game window; you do not need to type or guess it.',
@@ -134,3 +135,79 @@ class InputHint:
 
 def describe(widget,name,default=None,on_focus=None):
     return InputHint(widget,explanation(name)+'\nDefault: '+default_text(default),on_focus)
+
+
+BUTTON_HELP={
+'Start fishing':'Save the setup and start the fishing loop. Game input is sent only if Enable live game controls is checked. F9 pauses; Esc stops.',
+'Save':'Save your current settings for the next launch without starting fishing.',
+'Cancel':'Close this dialog without accepting its current selection. Existing saved settings are kept.',
+'Close':'Close this window. Unsaved boxes are discarded.',
+'Pick':'After a countdown, select this location or area on a frozen screenshot. No coordinates need typing.',
+'Clear':'Forget this selected location. Pick it again before using the related feature.',
+'Browse...':'Choose the image folder in a file picker.',
+'Open':'Open the associated folder in Windows Explorer.',
+'Add images...':'Copy existing bobber reference images into your template folder.',
+'Remove selected':'Delete the selected template pictures after confirmation.',
+'Refresh':'Reload the images from the selected folder.',
+'Capture from screen':'Enable F8 template capture. Switch to WoW, hover the bobber and press F8; Esc ends capture.',
+'Use selected window':'Use the highlighted game window and fill its capture bounds automatically.',
+'Use this area':'Accept the rectangle drawn on this frozen screenshot.',
+'Use this location':'Accept the point selected on this frozen screenshot.',
+'Next':'Accept the current setup step and proceed to the next selection.',
+'Back':'Return to the previous setup step to correct its selection.',
+'Save boxes → next':'Save all drawn boxes as human-reviewed ground truth and show the next picture.',
+'Explicit negative → next':'Save this picture as containing no object of any listed class. Do not use if a bobber is visible.',
+'Skip (unreviewed)':'Leave this picture unreviewed so it is excluded from training.',
+'Previous':'Show the previous picture for inspection or correction.',
+'Undo box':'Remove the most recently drawn box. Does not change saved labels until Save is pressed.',
+'Save correction & continue':'Save the boxes you drew as human labels, then resume using fresh game frames. The old screenshot is never used to click.',
+'No bobber here & continue':'Explicitly label this frame as containing no listed objects, then resume. Use only when no bobber or loot object is visible.',
+'Skip & continue':'Resume without saving a label. Use when the screenshot is unclear.',
+'Stop teaching':'Close the correction window and stop teaching. Pending mouse input stays disarmed.',
+'Train now in background':'Fine-tune and evaluate a new GPU candidate from your saved corrections while the current model continues inference. Never replaces the current model automatically.',
+}
+
+def button_description(text):
+    if text in BUTTON_HELP:return BUTTON_HELP[text]
+    lowered=text.lower()
+    for token,meaning in (
+      ('guided setup','Start the screenshot-based wizard to pick the water, bobber and Fishing action with countdowns.'),
+      ('normal cursor','After five seconds, remember the ordinary cursor shape for this game window.'),
+      ('gear cursor','After five seconds, remember the interaction gear while hovering your bobber.'),
+      ('latest trained model paths','Fill the latest completed model paths. This does not approve weights or enable game input.'),
+      ('record','Capture color frames and timing metadata without clicking. Focus the selected game window.'),
+      ('label','Open human review: draw boxes or explicitly mark empty frames. Unreviewed frames are excluded from training.'),
+      ('train','Start GPU training in an owned cancellable process. Your currently loaded weights stay in use until an evaluated replacement is approved.'),
+      ('evaluat','Run the selected weights on held-out sessions and save metrics and overlays. No game input is sent.'),
+      ('preview','Show current detections and reasons. Mouse input requires a configured action mode and explicit arming.'),
+      ('arm','Allow one configured mouse attempt after three seconds. Focus the game; freshness and takeover guards apply.'),
+      ('stop','Stop the current operation and disarm pending mouse input.'),
+      ('cancel','Cancel the owned background job. Partial results are not approved.'),
+      ('profile','Select the task policy file defining classes, allowed windows and detection thresholds.'),
+      ('window','Find allowed game windows and choose the one to capture.'),
+      ('config','Load saved training settings into the advanced controls.'),
+      ('export','Prepare human-reviewed labels with whole-session splits; raw recordings remain unchanged.'),
+      ('rollback','Restore a previously approved inactive release. No unreviewed model is promoted.'),
+      ('guide','Open the local illustrated instructions in your browser.'),
+      ('folder','Open the relevant saved model or data folder in Windows Explorer.'),
+      ('settings','Copy the normal fishing region and settings into this panel explicitly.'),
+      ('capture','Capture a frozen screenshot after the countdown for selection. No game clicking.'),
+      ('crop','Save the selected crop as a reference template.'),
+    ):
+        if token in lowered:return meaning
+    return text+': apply the selection shown in this dialog. Game input remains subject to the configured mode and arming guards.'
+
+def install_button_help(root):
+    """Cover existing AND dynamically created dialogs without replacing button commands."""
+    from tkinter import ttk
+    def attach(widget):
+        if isinstance(widget,(tk.Button,ttk.Button,tk.Checkbutton,ttk.Checkbutton,tk.Radiobutton,ttk.Radiobutton)) and not hasattr(widget,'input_description'):
+            InputHint(widget,button_description(str(widget.cget('text'))))
+    def walk(widget):
+        attach(widget)
+        for child in widget.winfo_children():walk(child)
+    walk(root)
+    owner=root._root()
+    if not getattr(owner,'_button_help_installed',False):
+        owner._button_help_installed=True
+        owner.bind_all('<Map>',lambda event:attach(event.widget),add='+')

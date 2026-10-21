@@ -121,6 +121,8 @@ def main():
             def timeout():
                 report.update(passed=False,error="timeout");stop();finish()
             root.after(round(args.timeout*1000),timeout)
+        from visual_targeting.input_help import install_button_help
+        install_button_help(root)
         root.mainloop()
 
 if __name__=="__main__":main()

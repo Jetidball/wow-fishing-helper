@@ -16,6 +16,12 @@ def make_fishing_detector(settings,*,live_input=False):
     registry=ModelRegistry(resolve_path(settings.neural_registry))
     if live_input:
         # Requires matching immutable evidence, quality gates and explicit user promotion.
+        selected=getattr(settings,'neural_weights','')
+        if selected:
+            from visual_targeting.experiments import sha
+            active=registry.active(profile)
+            if sha(resolve_path(selected))!=active['weights_sha256']:
+                raise ValueError('Selected model differs from the approved active model. Use Auto-fill everything on the approved model, or evaluate and approve this selection.')
         return make_detector(profile,registry)
     weights=getattr(settings,'neural_weights','')
     if weights:return make_detector(profile,registry,weights=resolve_path(weights),candidate=True)

@@ -83,4 +83,6 @@ def open_crop_dialog(parent, image, directory, on_saved):
     ttk.Button(buttons,text='Save bobber template',command=save).pack(side='left',padx=8,pady=8)
     ttk.Button(buttons,text='Cancel',command=top.destroy).pack(side='left')
     top.bind('<Escape>',lambda event:top.destroy())
+    from .input_help import install_button_help
+    install_button_help(top)
     return top

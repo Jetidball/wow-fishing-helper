@@ -226,4 +226,10 @@ class FishingTask:
                        report["candidate_count"],report["eligible_count"],report["stale_frames"],report["report_path"])
       except Exception as exc:
         logger.warning("Could not save acquisition diagnostics: {}",exc)
+    if self.machine.outcome=='acquisition_expired' and last_frame is not None and getattr(settings,'teach_on_miss',False):
+      from visual_targeting.normal_teaching import handle_miss
+      try:handle_miss(settings,detector,last_frame,stop)
+      except Exception as exc:
+        logger.exception('Teaching correction failed: {}',exc)
+        guard.request_pause('Teaching failed; correction was not completed. See log.')
     return self.machine.outcome

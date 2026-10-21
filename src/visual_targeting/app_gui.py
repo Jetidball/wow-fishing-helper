@@ -127,12 +127,17 @@ class TargetingPanel(ttk.Frame):
         for key in ('profile','registry','hwnd'):
             self.values[key].trace_add('write',lambda *args:self.stop())
         self.refresh_training_progress()
+        from .input_help import install_button_help
+        install_button_help(self.winfo_toplevel())
+        from .errors import track_tk_errors
+        track_tk_errors(self.winfo_toplevel(),self.status.set)
         self.bind('<Destroy>',self.destroyed,add='+');self.poll_timer=self.after(150,self.poll)
     def selected_info(self,row):
         if row is None:raise ValueError('Select a model in the table first.')
         from .deployment import candidate_for_run
         info=candidate_for_run(row['run_dir'],row['evaluation_file'])
-        for key,value in (('profile',info['profile']),('weights',info['weights']),('training_run',info['run'])):self.values[key].set(str(value))
+        for key,value in (('profile',info['profile']),('weights',info['weights']),('training_run',info['run'])):
+            if self.values[key].get()!=str(value):self.values[key].set(str(value))
         return info
     def original_dataset(self,row):
         from .experiments import sha
@@ -160,11 +165,17 @@ class TargetingPanel(ttk.Frame):
     def model_action(self,action,row):
         import time,sys
         if action=='stop':self.stop();self.cancel_job();return
+        if action=='errors':
+            import os
+            path=Path('data/logs/application-errors.jsonl').resolve()
+            path.parent.mkdir(parents=True,exist_ok=True);path.touch(exist_ok=True)
+            os.startfile(str(path));return
         if action=='log':
             import os
             if not self.job.log or not self.job.log.exists():raise ValueError('No job log yet. Run a GPU check, evaluation or refinement first.')
             os.startfile(str(self.job.log.resolve()));return
         if action=='arm':self.arm();return
+        if action=='teach_train':self.train_teaching_now();return
         if action=='next':
             action,message=self.recommended_step(row)
             self.status.set(message)
@@ -176,14 +187,32 @@ class TargetingPanel(ttk.Frame):
             self.stop();self.job.start_python(['tools/setup_gpu.py'],python=self.get('python'))
             self.status.set('Installing GPU support. Wait for completion, close and reopen the app, then Check GPUs.');return
         info=self.selected_info(row)
-        if action in ('fill','collect','move','click') and not self.get('hwnd'):
+        if action in ('fill','collect','move','click','teach') and self.get('hwnd'):
+            from .window_context import query_window
+            try:
+                identity,_,_=query_window(int(self.get('hwnd')))
+                if not Profile.read(info['profile']).allows(identity):raise ValueError('Window no longer matches this model.')
+            except (OSError,ValueError,RuntimeError):self.values['hwnd'].set('')
+        if action in ('fill','collect','move','click','teach') and not self.get('hwnd'):
             from .window_context import allowed_windows
             windows=allowed_windows(Profile.read(info['profile']))
             if len(windows)==1:self.values['hwnd'].set(str(windows[0]['window']['hwnd']))
             else:self.select_window(lambda:self.guard(lambda:self.model_action(action,row)));return
         if action=='fill':
-            self.values['dataset'].set(str(self.original_dataset(row)));self.use_window_region()
-            self.status.set('Selected model, profile, dataset, run and game area filled. Choose Run & collect or a mouse test.');return
+            warning=''
+            try:self.values['dataset'].set(str(self.original_dataset(row)))
+            except ValueError:warning=' Original training dataset is missing; live inference does not require it.'
+            self.use_window_region()
+            callback=getattr(self,'use_fishing_callback',None)
+            if callback:
+                report=callback(info);self.status.set(report['message']+warning)
+            else:self.status.set('Preview paths filled. To configure LIVE fishing, open Start Fishing.cmd and use Auto-fill on its Model results tab.'+warning)
+            return
+        if action=='teach':
+            inference=Profile.read(info['profile']).data['model']['device']
+            self.train_values['device'].set('0' if inference in ('1','cuda:1') else '1')
+            self.teaching_row=row;self.teaching_store=None;self.teaching_trained_count=0
+            self._preview_candidate(info,teaching=True);return
         if action=='collect':self._preview_candidate(info,collect='data/improvement-examples');return
         if action=='review':
             if not Path('data/improvement-examples/manifest.json').exists():raise ValueError('No pictures to review yet. Click Run & collect improvements, focus WoW, then Stop and Review.')
@@ -191,7 +220,10 @@ class TargetingPanel(ttk.Frame):
             if self.preview.thread:self.preview.thread.join(timeout=2)
             self.values['dataset'].set('data/improvement-examples');self.label_pictures();return
         if action=='refine':
-            self.stop();output=Path('runs')/('fishing-refined-'+str(time.time_ns()))
+            step,message=self.recommended_step(row)
+            if step!='refine':raise ValueError(message)
+            if not self.preview.teaching:self.stop()
+            output=Path('runs')/('fishing-refined-'+str(time.time_ns()))
             args=['-u','-m','visual_targeting.improvement','--run',str(info['run']),'--dataset',str(self.original_dataset(row)),
                   '--new-data','data/improvement-examples','--output',str(output),'--device',self.train_values['device'].get()]
             self.job.start_python(args,python=self.get('python'));self.status.set('Refine + test started on GPU. Only human-reviewed new visits are used; old test sessions remain frozen.');return
@@ -240,7 +272,7 @@ class TargetingPanel(ttk.Frame):
     def preview_latest(self,movement=False):
         from .deployment import latest_candidate
         self._preview_candidate(latest_candidate(),movement)
-    def _preview_candidate(self,info,movement=False,collect=None):
+    def _preview_candidate(self,info,movement=False,collect=None,teaching=False):
         self.stop()
         from .window_context import allowed_windows
         profile=Profile.read(info['profile'])
@@ -264,7 +296,7 @@ class TargetingPanel(ttk.Frame):
         self.mode.set('move' if movement else 'dry-run')
         self.preview.start(profile,ModelRegistry(self.get('registry')),self.get('hwnd'),self.mode.get(),
                            weights=str(info['weights']),training_run=str(info['run']),
-                           evaluation=str(info['evaluation']) if info['evaluation'] else None,region=region,collect=collect)
+                           evaluation=str(info['evaluation']) if info['evaluation'] else None,region=region,collect=collect,teaching=teaching)
         self.status.set('Movement-only test configured. Check the cross, then click Arm ONE attempt and focus WoW within 3 seconds. No click is permitted.' if movement else 'Candidate neural preview loading. Focus WoW; return here to inspect the latest cross. No input.')
     def review_latest_evaluation(self):
         from .deployment import latest_candidate
@@ -455,8 +487,11 @@ class TargetingPanel(ttk.Frame):
     def get(self,key):return self.values[key].get().strip()
     def profile(self):return Profile.read(self.get('profile'))
     def guard(self,fn):
-        try:fn()
-        except Exception as exc:self.status.set(f'{type(exc).__name__}: {exc}')
+        try:return fn()
+        except Exception as exc:
+            from .errors import record_error
+            event,path=record_error(getattr(fn,'__name__','gui_action'),exc,{key:self.get(key) for key in ('profile','weights','training_run','dataset','output','hwnd')})
+            self.status.set(f'{type(exc).__name__}: {exc} | Error {event}; Open error history ({path or "log unavailable"}).')
     def choose_profile(self):
         path=filedialog.askopenfilename(filetypes=[('Task profile','*.json')])
         if path:self.stop();self.values['profile'].set(path)
@@ -526,6 +561,11 @@ class TargetingPanel(ttk.Frame):
         if not self.preview.thread or not self.preview.thread.is_alive():raise ValueError('Start preview first')
         self.preview.arm_event.set();self.status.set('One attempt requested. Focus the allowlisted target window within 3 seconds.')
     def stop(self):
+        dialog=getattr(self,'teaching_dialog',None)
+        if dialog is not None:
+            self.teaching_dialog=None
+            try:dialog.destroy()
+            except tk.TclError:pass
         self.preview.stop()
         if getattr(self,'capture_pending',None):
             self.after_cancel(self.capture_pending);self.capture_pending=None
@@ -538,6 +578,11 @@ class TargetingPanel(ttk.Frame):
     def job_command(self,command):
         self.stop()
         if self.profile().data['model']['backend']!='neural':raise ValueError('Choose a neural profile before neural training/evaluation. Normal fishing remains unchanged.')
+        output=Path(self.get('output')).resolve();dataset=Path(self.get('dataset')).resolve()
+        if output.exists() or output.is_relative_to(dataset) or dataset.is_relative_to(output):
+            import time
+            output=Path('runs')/('fishing-'+command+'-'+str(time.time_ns()))
+            self.values['output'].set(str(output))
         args=self.base_args()+[command,'--dataset',self.get('dataset'),'--output',self.get('output')]
         if command=='train':
             from dataclasses import replace,asdict
@@ -559,8 +604,36 @@ class TargetingPanel(ttk.Frame):
         ModelRegistry(self.get('registry')).rollback(self.profile(),self.get('release'),self.get('reviewer'))
         self.status.set('Rolled back; restart preview to reload explicitly approved weights')
     def cancel_job(self):self.job.cancel();self.status.set('Job cancelled; partial output is not approved')
+    def train_teaching_now(self):
+        row=getattr(self,'teaching_row',None)
+        if row is None:raise ValueError('Start Teach missed bobbers first.')
+        if self.job.process is not None and self.job.process.poll() is None:raise ValueError('Training is already running. Your next corrections will be included in the following run.')
+        self.model_action('refine',row)
+        self.teaching_trained_count=self.teaching_store.count if self.teaching_store else 0
+    def teaching_request(self):
+        if getattr(self,'teaching_dialog',None) is not None:return
+        try:request=self.preview.teacher.requests.get_nowait()
+        except queue.Empty:return
+        if request.done.is_set() or self.preview.stop_event.is_set():return
+        from .teaching import CorrectionStore,correction_dialog
+        profile=self.profile()
+        if getattr(self,'teaching_store',None) is None:
+            self.teaching_store=CorrectionStore(profile,self.teaching_row['run']['checkpoint_sha256'])
+        def finished(decision):
+            self.teaching_dialog=None
+            self.preview.teacher.complete(request)
+            if decision=='stop':self.stop();return
+            if decision in ('save','negative'):
+                self.review_changed()
+                if self.teaching_store.count-getattr(self,'teaching_trained_count',0)>=5:
+                    try:self.train_teaching_now()
+                    except ValueError as exc:self.status.set('Correction saved. '+str(exc))
+        try:self.teaching_dialog=correction_dialog(self,request,self.teaching_store,self.get('reviewer'),finished,self.train_teaching_now)
+        except Exception:
+            self.preview.teacher.complete(request);raise
     def poll(self):
         if self.closed:return
+        self.guard(self.teaching_request)
         try:
             image,reason=self.preview.frames.get_nowait();self.status.set(reason)
             if image is not None:
@@ -574,15 +647,19 @@ class TargetingPanel(ttk.Frame):
         if self.job.process:
             state=self.job.status()
             if getattr(self,'results_panel',None):
-                changed=state!=getattr(self,'last_result_job_state',None)
+                job_key=(str(self.job.log),state)
+                changed=job_key!=getattr(self,'last_result_job_state',None)
                 if changed:
                     self.results_panel.refresh()
                     detail=''
                     if state.startswith('failed'):
+                        from .errors import record_error
+                        record_error('worker_failed',RuntimeError(log_tail(self.job.log)),{'log':str(self.job.log),'profile':self.get('profile'),'output':self.get('output')})
+                    if state.startswith('failed'):
                         lines=[line.strip() for line in log_tail(self.job.log).splitlines() if line.strip()]
                         if lines:detail=' | '+lines[-1]
                     self.status.set('Job: '+state+detail+' | Open job log for details.')
-                self.last_result_job_state=state
+                self.last_result_job_state=job_key
             if getattr(self,'pending_export',None) and state=='completed':
                 self.values['dataset'].set(self.pending_export)
                 self.pending_export=None
@@ -615,6 +692,7 @@ class TargetingPanel(ttk.Frame):
         if getattr(self,'poll_timer',None):
             try:self.after_cancel(self.poll_timer)
             except tk.TclError:pass
+        self.stop()
         self.closed=True;self.preview.stop()
         if getattr(self,'capture_pending',None):self.after_cancel(self.capture_pending)
         self.job.cancel()

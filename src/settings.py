@@ -29,7 +29,9 @@ class Settings():
     self.detector_backend = "template"
     self.neural_profile = "../configs/tasks/fishing-neural-v2.json"
     self.neural_registry = "../data/model-registry"
+    self.neural_window_hwnd = 0  # selected game handle; session-only
     self.neural_weights = ""
+    self.teach_on_miss = False
     self.hover_on_acquire = True
     self.require_gear_cursor = False
     self.gear_cursor_handle = 0  # session-only; calibrate after launching the helper
@@ -117,6 +119,7 @@ class Settings():
     self.neural_profile = data.get("neuralProfile", self.neural_profile)
     self.neural_registry = data.get("neuralRegistry", self.neural_registry)
     self.neural_weights = data.get("neuralWeights", self.neural_weights)
+    self.teach_on_miss = data.get("teachOnMiss", self.teach_on_miss)
     self.hover_on_acquire = data.get("hoverOnAcquire", self.hover_on_acquire)
     self.require_gear_cursor = data.get("requireGearCursor", self.require_gear_cursor)
     self.acquire_timeout = float(data.get("acquireTimeout", self.acquire_timeout))
@@ -206,6 +209,7 @@ class Settings():
       "neuralProfile": self.neural_profile,
       "neuralRegistry": self.neural_registry,
       "neuralWeights": self.neural_weights,
+      "teachOnMiss": self.teach_on_miss,
       "hoverOnAcquire": self.hover_on_acquire,
       "requireGearCursor": self.require_gear_cursor,
       "acquireTimeout": self.acquire_timeout,

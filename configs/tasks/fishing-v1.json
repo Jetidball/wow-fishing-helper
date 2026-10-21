@@ -6,7 +6,7 @@
     "backend": "template",
     "templates": "../../images",
     "release": "active",
-    "device": "cpu",
+    "device": "1",
     "imgsz": 960
   },
   "allowed_classes": [

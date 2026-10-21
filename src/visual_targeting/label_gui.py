@@ -98,4 +98,6 @@ def open_labeler(parent,profile,dataset,reviewer,on_change=None):
     except Exception:
         top.destroy();raise
     top.lift();top.focus_set()
+    from .input_help import install_button_help
+    install_button_help(top)
     return top

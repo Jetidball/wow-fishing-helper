@@ -78,4 +78,6 @@ def open_fishing_setup(parent,directory,on_done):
     ttk.Button(buttons,text='Cancel',command=cancel).pack(side='left',padx=8)
     top.protocol('WM_DELETE_WINDOW',cancel);top.bind('<Escape>',lambda event:cancel())
     update();top.lift();top.focus_set()
+    from .input_help import install_button_help
+    install_button_help(top)
     return top

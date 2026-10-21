@@ -97,8 +97,13 @@ class NeuralUseTests(unittest.TestCase):
             self.assertTrue(make.call_args.kwargs['candidate'])
             self.assertTrue(make.call_args.kwargs['weights'].endswith('candidate.pt'))
             make.reset_mock()
-            make_fishing_detector(settings,live_input=True)
+            with patch('visual_targeting.lifecycle.ModelRegistry.active',return_value={'weights_sha256':'approved'}),patch('visual_targeting.experiments.sha',return_value='approved'):
+                make_fishing_detector(settings,live_input=True)
             self.assertNotIn('weights',make.call_args.kwargs)
+            make.reset_mock()
+            with patch('visual_targeting.lifecycle.ModelRegistry.active',return_value={'weights_sha256':'approved'}),patch('visual_targeting.experiments.sha',return_value='different'):
+                with self.assertRaisesRegex(ValueError,'differs from the approved'):make_fishing_detector(settings,live_input=True)
+            make.assert_not_called()
     def test_cursor_handles_are_not_persisted_as_calibration(self):
         from settings import Settings
         settings=Settings();settings.gear_cursor_handle=123;settings.normal_cursor_handle=456

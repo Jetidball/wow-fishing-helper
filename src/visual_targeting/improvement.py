@@ -5,13 +5,13 @@ from . import dataset as ds
 from .experiments import exported_dataset,sha,TrainConfig
 
 class ExampleCollector:
-    def __init__(self,root,profile,model_sha,max_frames=360,interval=5):
+    def __init__(self,root,profile,model_sha,max_frames=360,interval=5,max_seconds=1800):
         self.root=Path(root);self.profile=profile;self.model_sha=model_sha
         self.session='visit_'+uuid.uuid4().hex[:16];self.count=0;self.last=-float('inf')
-        self.max_frames=max_frames;self.interval=interval;self.started=time.monotonic()
+        self.max_frames=max_frames;self.interval=interval;self.max_seconds=max_seconds;self.started=time.monotonic()
     def add(self,profile,frame,reason,*,suggestion=None,source=None):
         now=time.monotonic()
-        if self.count>=self.max_frames or now-self.started>1800 or now-self.last<self.interval:return None
+        if self.count>=self.max_frames or now-self.started>self.max_seconds or now-self.last<self.interval:return None
         self.last=now
         import cv2 as cv
         image=frame.pixels.copy()

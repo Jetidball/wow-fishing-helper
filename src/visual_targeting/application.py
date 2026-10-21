@@ -56,6 +56,8 @@ class Job:
 class Preview:
     def __init__(self):
         self.stop_event=threading.Event();self.arm_event=threading.Event();self.frames=queue.Queue(maxsize=1);self.thread=None
+        from .teaching import MissTeacher
+        self.teacher=MissTeacher();self.teaching=False
         self.mode='dry-run';self.reason='stopped';self.action_result=''
     def publish(self,image,reason):
         self.reason=reason
@@ -63,10 +65,13 @@ class Preview:
         except queue.Empty:pass
         self.frames.put_nowait((image,reason))
     def stop(self):
-        self.arm_event.clear();self.stop_event.set()
-    def start(self,profile,registry,hwnd,mode='dry-run',*,weights=None,training_run=None,evaluation=None,region=None,collect=None):
+        self.arm_event.clear();self.stop_event.set();self.teaching=False;self.teacher.stop()
+    def start(self,profile,registry,hwnd,mode='dry-run',*,weights=None,training_run=None,evaluation=None,region=None,collect=None,teaching=False):
         if self.thread and self.thread.is_alive():raise ValueError('Stop the previous preview first')
         if mode not in ('dry-run','move','single-click'):raise ValueError('Invalid mode')
+        self.teaching=teaching
+        from .teaching import MissTeacher
+        self.teacher=MissTeacher()
         self.mode=mode;self.action_result='';self.stop_event.clear();self.arm_event.clear()
         self.thread=threading.Thread(target=self.run,args=(profile,registry,int(hwnd),weights,training_run,evaluation,region,collect),daemon=True);self.thread.start()
     def run(self,profile,registry,hwnd,weights=None,training_run=None,evaluation=None,region=None,collect=None):
@@ -114,6 +119,13 @@ class Preview:
                     frame=Frame(sequence,captured,image,Box(int(capture_rect.left),int(capture_rect.top),image.shape[1],image.shape[0]),'bgr');sequence+=1
                     target=session.preview(frame,identity,transforms.active,time.monotonic())
                     reason=session.reason
+                    if self.teaching:
+                        request=self.teacher.consider(frame,reason,time.monotonic())
+                        if request:
+                            self.arm_event.clear();mouse=None;deadline=None
+                            self.publish(frame.pixels,'Teaching paused: draw a box on the missed bobber, then save and continue.')
+                            while not request.done.is_set() and not self.stop_event.wait(.1):pass
+                            continue  # Discard old targets; reacquire on a new frame after the human finishes.
                     display=preview_image(image,target,capture_rect.left,capture_rect.top)
                     if self.arm_event.is_set():
                         self.arm_event.clear();deadline=time.monotonic()+3;reason='Arming in 3 seconds; focus target and release input'
@@ -142,5 +154,8 @@ class Preview:
                         reason+=f' | Review pictures saved: {collector.count}/360'
                     if self.action_result:reason+=' | Last attempt: '+self.action_result
                     self.publish(display,reason);self.stop_event.wait(.1)
-        except Exception as exc:self.publish(None,f'{type(exc).__name__}: {exc}')
+        except Exception as exc:
+            from .errors import record_error
+            event,path=record_error('preview_failed',exc,{'hwnd':hwnd,'mode':self.mode,'weights':str(weights),'profile':profile.digest})
+            self.publish(None,f'{type(exc).__name__}: {exc} | Error {event}; Open error history.')
         finally:self.arm_event.clear();self.stop_event.set()

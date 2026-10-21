@@ -66,6 +66,8 @@ class App():
 
     self.root = tk.Tk()
     self.root.title("WoW Fishing Bot")
+    from visual_targeting.errors import track_tk_errors
+    track_tk_errors(self.root,lambda text:self.status.set(text) if hasattr(self,"status") else None)
     self.root.minsize(640, 560)
     self.root.protocol("WM_DELETE_WINDOW", self.cancel)
 
@@ -109,17 +111,31 @@ class App():
     ttk.Button(bottom, text="Start fishing", command=self.start).pack(side="right", padx=4)
     ttk.Button(bottom, text="Save", command=self.save).pack(side="right")
 
+    from visual_targeting.input_help import install_button_help
+    install_button_help(self.root)
     self.update_states()
     self.poll_timer = self.root.after(100, self.poll)
 
   def use_selected_fishing(self,info):
-    self.neural_weights_var.set(str(info['weights']))
-    self.neural_profile_var.set(str(info['profile']))
-    self.neural_registry_var.set(self.targeting_panel.get('registry'))
+    if not self.collect():raise ValueError('Correct the invalid normal setting before auto-fill.')
+    from visual_targeting.live_setup import fishing_setup
+    report=fishing_setup(self.s,info,self.targeting_panel.get('registry'),self.targeting_panel.get('hwnd'))
+    fields=report['fields']
+    self.neural_weights_var.set(fields['weights'])
+    self.neural_profile_var.set(fields['profile'])
+    self.neural_registry_var.set(fields['registry'])
     self.backend_choice.set('Neural network (approved model for live)')
+    self.s.neural_window_hwnd=report['hwnd']
+    # Update the settings object as well as visible inputs; later Start reads the same values.
+    self.s.detector_backend='neural';self.s.neural_weights=fields['weights']
+    self.s.neural_profile=fields['profile'];self.s.neural_registry=fields['registry']
     self.pages.select(0)
     self.pages.nametowidget(self.pages.tabs()[0]).select(0)
-    self.status.set('Approved neural model selected. Enable live game controls, then Start fishing. The fishing loop handles bites and right clicks.')
+    self.status.set(report['message']);self.ready_text.set(report['message'])
+    if not report['ready']:
+      from visual_targeting.errors import record_error
+      record_error('live_auto_fill_blocked',ValueError(report['message']),{'profile':fields['profile'],'weights':fields['weights'],'hwnd':report['hwnd']})
+    return report
 
   def preview_model(self,row):
     self.pages.select(1)
@@ -163,7 +179,11 @@ class App():
     ttk.Label(self.home,text="Unchecked = dry-run, no game input. While fishing: F9 pauses/resumes; Esc stops.\n"
               "Redo setup if you move/resize the game or change its UI scale. Your original settings are in the Normal fishing tabs.",
               wraplength=680,justify="left").pack(anchor="w",pady=10)
+    self.check(self.home_teaching_frame(),0,"Ask me to box missed bobbers while fishing (neural teaching)","teach_on_miss")
     self.refresh_ready()
+
+  def home_teaching_frame(self):
+    frame=ttk.Frame(self.home);frame.pack(fill="x",pady=4);return frame
 
   def refresh_ready(self):
     missing=[]
@@ -453,10 +473,11 @@ class App():
     try:
       from visual_targeting.deployment import latest_candidate
       info=latest_candidate()
-      self.neural_weights_var.set(str(info["weights"]))
-      self.neural_profile_var.set(str(info["profile"]))
-      self.status.set("Latest trained paths selected. Choose Neural network above; leave live controls off for a candidate dry-run.")
-    except Exception as exc:self.status.set(f"Cannot select trained model: {exc}")
+      self.use_selected_fishing(info)
+    except Exception as exc:
+      from visual_targeting.errors import record_error
+      record_error('latest_live_auto_fill',exc)
+      self.status.set(f'Cannot configure live fishing: {exc}')
 
   def calibrate_cursor(self,gear):
     if self.busy:return
@@ -549,6 +570,8 @@ class App():
       for attr, read in self.fields:
         values[attr] = read()
     except ValueError as e:
+      from visual_targeting.errors import record_error
+      record_error("invalid_setting",e)
       messagebox.showerror("Invalid setting", str(e), parent=self.root)
       return False
     for attr, v in values.items():
@@ -586,6 +609,9 @@ class App():
     if self.s.require_gear_cursor and self.live_controls.get() and (not self.s.gear_cursor_handle or not self.s.normal_cursor_handle):
       messagebox.showerror("Calibrate the gear cursor","Capture both normal and gear cursor shapes above, or turn off Require calibrated gear.",parent=self.root)
       return
+    if self.s.teach_on_miss and self.s.detector_backend!="neural":
+      messagebox.showinfo("Neural teaching","Select Neural network in Locations & Fishing before enabling teaching. Original template fishing remains available without teaching.",parent=self.root)
+      return
     if self.s.detector_backend=="neural":
       try:
         from fishing.backend import make_fishing_detector
@@ -593,6 +619,8 @@ class App():
         self.root.update_idletasks()
         self.s._prepared_detector=make_fishing_detector(self.s,live_input=self.live_controls.get())
       except Exception as exc:
+        from visual_targeting.errors import record_error
+        record_error("live_start_model",exc,{"profile":self.s.neural_profile,"weights":self.s.neural_weights})
         messagebox.showerror("Neural model not ready",str(exc)+"\nUse Visual targeting for candidate preview/movement tests. Review evaluation before approving automatic fishing.",parent=self.root)
         return
     from visual_targeting.input import desktop, WindowsInput, DryRunInput

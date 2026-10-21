@@ -22,9 +22,12 @@ class ModelResultsPanel(ttk.Frame):
         actions=ttk.LabelFrame(self,text='Select a model below, then choose your next step',padding=5)
         actions.pack(fill='x',pady=4)
         choices=[
+          ('errors','Open error history','Open persistent JSONL errors with timestamps, action, settings context and traceback. Includes blocked live setup and worker failures.'),
+          ('teach','Teach missed bobbers while running','Run the selected model. After a sustained missed search, pause on the frozen frame and ask you to draw correct boxes. Five saved corrections start background GPU refinement/evaluation. Current weights remain loaded.'),
+          ('teach_train','Train now in background','Train from your saved human corrections without stopping teaching preview. New weights are evaluated, never auto-promoted.'),
           ('next','Do recommended next step','Follow the guidance below: collect examples, review pending pictures, refine reviewed data, or evaluate a model. Never approves or arms mouse input automatically.'),
           ('log','Open job log','Open the full GPU, training or evaluation log for troubleshooting. The GUI displays only a bounded tail to stay responsive.'),
-          ('fill','Auto-fill everything','Fill paths for the selected model and find the game window. No input is sent.'),
+          ('fill','Auto-fill everything','Fill the selected model, exact profile, absolute registry and approved weights into Normal fishing too. Check saved water/action locations and show LIVE READY or precise blockers. Live controls remain your choice.'),
           ('collect','Run & collect improvements','Preview this model on the GPU and save up to 360 new pictures over 30 minutes for HUMAN review. Predictions never become labels automatically. No clicking.'),
           ('review','Review new pictures','Stop collection and draw correct boxes or mark explicit empty pictures. Suggestions are not training labels.'),
           ('refine','Refine + test on GPU','Fine-tune the selected checkpoint for 10 passes using newly reviewed visits, then evaluate. Existing validation/test visits stay frozen. Your active model is kept.'),

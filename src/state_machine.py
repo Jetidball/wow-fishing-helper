@@ -175,6 +175,7 @@ if __name__ == "__main__":
     pag.configure(WindowsInput())
   else:
     pag.configure(DryRunInput())
+  logger.add("data/logs/fishing-{time:YYYY-MM-DD}.log",rotation="10 MB",retention=5,enqueue=True)
   config.load()
   if "--no-gui" not in sys.argv:
     from gui import run_gui
@@ -197,5 +198,11 @@ if __name__ == "__main__":
       state_func()
   except (Cancelled, KeyboardInterrupt):
     logger.info("Fishing cancelled")
+  except Exception as exc:
+    from visual_targeting.errors import record_error
+    record_error("fishing_crash",exc,{"backend":config.detector_backend,"profile":config.neural_profile})
+    logger.exception("Fishing stopped after an error")
+    raise
   finally:
     pag.release_all()
+    logger.complete()
