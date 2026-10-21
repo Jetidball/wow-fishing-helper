@@ -18,8 +18,9 @@ def candidate_for_run(run_dir,evaluation=None,root=Path('.')):
     root=Path(root);run_dir=Path(run_dir)
     run=json.loads((run_dir/'run.json').read_text())
     weights=Path(run.get('checkpoint',run_dir/'fit/weights/best.pt'))
-    if run.get('status')!='completed' or not weights.is_file() or sha(weights)!=run['checkpoint_sha256']:
-        raise ValueError('Completed, unchanged trained weights required')
+    if run.get('status')!='completed':raise ValueError('This training run is '+str(run.get('status','unknown'))+'. Wait for completion and Refresh results; see its job log if failed.')
+    if not weights.is_file():raise ValueError('Model file is missing: '+str(weights)+'. Restore the checkpoint or select a completed model.')
+    if sha(weights)!=run.get('checkpoint_sha256'):raise ValueError('Model file differs from its training evidence: '+str(weights)+'. Wait for training to finish and refresh; changed weights need fresh verified evaluation.')
     if Profile(run['profile']).digest!=run['profile_sha256']:raise ValueError('Training profile snapshot changed; restore the original run metadata.')
     def matches(path):
         try:return Profile.read(path).digest==run['profile_sha256']

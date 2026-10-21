@@ -208,6 +208,18 @@ class TargetingPanel(ttk.Frame):
                 report=callback(info);self.status.set(report['message']+warning)
             else:self.status.set('Preview paths filled. To configure LIVE fishing, open Start Fishing.cmd and use Auto-fill on its Model results tab.'+warning)
             return
+        if action=='audit':
+            self.stop()
+            from .label_audit import audit_labels,raw_sources
+            from . import dataset as ds
+            from .label_gui import open_labeler
+            report=audit_labels(self.original_dataset(row));sources=raw_sources(r['frame_id'] for r in report['findings'])
+            folder=Path('data/audits');folder.mkdir(parents=True,exist_ok=True);ds.atomic_json(folder/'latest-label-audit.json',report)
+            if not sources:raise ValueError('No suspicious labels found, or original recordings are missing. Audit saved in data/audits/latest-label-audit.json.')
+            root,ids=sources[0]
+            open_labeler(self,Profile.read(info['profile']),root,self.get('reviewer'),self.review_changed,frame_ids=ids)
+            self.status.set(f'Reviewing {len(ids)} flagged original pictures. Lower boxes may be reflections. No labels changed automatically; retrain after corrections.')
+            return
         if action=='teach':
             inference=Profile.read(info['profile']).data['model']['device']
             self.train_values['device'].set('0' if inference in ('1','cuda:1') else '1')

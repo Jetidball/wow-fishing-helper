@@ -77,23 +77,30 @@ def evaluate_task(profile,dataset,output,*,weights=None,training_run=None,detect
         "split":"test","sessions":sorted({r["session_id"] for r in rows}),"frame_ids":[r["id"] for r in rows],
         "training_provenance_verified":provenance is not None,"template_sources":sources,"backends":{},
         "environment":environment(),"live_input_enabled":False,
-        "notes":"Single task target class; one unambiguous detection per frame. AP truncated at profile confidence. No live frame-age claim."}
+        "detection_metrics_version":2,
+        "notes":"All target-class detections scored against all target labels. Ambiguity abstention is reported separately; it is not a detector miss. AP truncated at profile confidence. No live frame-age claim."}
     ds.atomic_json(output/"report.json",report)
     try:
         target_class=data["classes"].index(profile.data["target_class"])
         for name,backend in backends.items():
-            records=[];folder=output/name;folder.mkdir()
+            records=[];ambiguous=missing=0;folder=output/name;folder.mkdir()
             for row in rows:
                 started=time.monotonic();image=cv.imread(str(ds.image_path(dataset,row["image"])))
                 frame=Frame(row["sequence"],started,image,Box(0,0,row["width"],row["height"]),"bgr")
-                infer=time.monotonic();found=backend.detect(frame);ended=time.monotonic()
+                infer=time.monotonic()
+                if callable(getattr(type(backend),'detections',None)):found=backend.detections(frame)
+                else:
+                    single=backend.detect(frame);found=[] if single is None else [single]
+                ended=time.monotonic()
+                ambiguous+=len(found)>1;missing+=not found
                 predictions=[]
-                if found is not None:
-                    if found.label!=profile.data["target_class"]:raise ValueError("backend returned disallowed target class")
-                    b=found.box;ax,ay=profile.data["click_anchor"]
-                    predictions=[{"box":[b.left,b.top,b.left+b.width,b.top+b.height],"score":found.score,"point":[int(b.left+b.width*ax),int(b.top+b.height*ay)]}]
+                for detection in found:
+                    if detection.label!=profile.data["target_class"]:raise ValueError("backend returned disallowed target class")
+                    b=detection.box;ax,ay=profile.data["click_anchor"]
+                    prediction={"box":[b.left,b.top,b.left+b.width,b.top+b.height],"score":detection.score,"point":[int(b.left+b.width*ax),int(b.top+b.height*ay)]}
+                    predictions.append(prediction)
                     cv.rectangle(image,(b.left,b.top),(b.left+b.width,b.top+b.height),(0,0,255),1)
-                    cv.drawMarker(image,tuple(predictions[0]["point"]),(255,0,0),cv.MARKER_CROSS,7)
+                    cv.drawMarker(image,tuple(prediction['point']),(255,0,0),cv.MARKER_CROSS,7)
                 truth=[[b["x"],b["y"],b["x"]+b["width"],b["y"]+b["height"]] for b in row["annotation"]["boxes"] if b["class_id"]==target_class]
                 for b in truth:cv.rectangle(image,tuple(int(v) for v in b[:2]),tuple(int(v) for v in b[2:]),(0,255,0),1)
                 if not cv.imwrite(str(folder/(row["id"]+".png")),image):raise ValueError("overlay write failed")
@@ -101,6 +108,7 @@ def evaluate_task(profile,dataset,output,*,weights=None,training_run=None,detect
                 record.update(truth=truth,predictions=predictions,inference_ms=(ended-infer)*1000,service_ms=(ended-started)*1000);records.append(record)
             (folder/"predictions.jsonl").write_text("".join(json.dumps(r,allow_nan=False)+"\n" for r in records),encoding="utf-8")
             report["backends"][name]=metrics(records,profile.data["confidence"])
+            report["backends"][name]["selection_policy"]={"ambiguous_frames":ambiguous,"missing_frames":missing,"unambiguous_frames":len(rows)-ambiguous-missing,"note":"Offline detector metrics do not authorize clicking. Live ownership/freshness/ambiguity guards are unchanged."}
             report["backends"][name]["frame_ids"]=[r["id"] for r in rows]
         if sha(Path(dataset)/"manifest.json")!=report["dataset_manifest_sha256"]:raise ValueError("dataset changed during evaluation")
         report["status"]="completed"

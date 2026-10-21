@@ -86,3 +86,12 @@ In the **Start Fishing.cmd** app, select the desired model on **Model results** 
 The standalone Start Targeting launcher remains a preview/teaching application; it tells you to use Start Fishing for live fishing. Reused output folders are replaced with unique new output names for GUI training/evaluation retries. Refine checks for eligible reviewed corrections before launching a job.
 
 **Open error history** opens `data/logs/application-errors.jsonl`: timestamps, error IDs, action, relevant paths and traceback. GUI callback errors, failed previews, failed worker jobs, blocked live setup and fatal fishing errors are recorded. Logs rotate at 2 MB with three backups. **Open job log** still opens the detailed worker output. Normal fishing writes rotating logs under `data/logs/fishing-*.log`. Previously observed output-folder and missing-review errors have also been imported into the history.
+
+
+## Repairing model accuracy and startup errors
+
+New evaluations score ALL bobber detections. Older reports used the single-target click policy, so ambiguous frames were counted as misses. Reports and comparison groups now distinguish the corrected metric version. Live ambiguity/ownership guards remain unchanged.
+
+Use **Review suspicious labels** on Model results to inspect likely bobber/reflection pairs in the original recordings. The audit is heuristic and never changes labels. **Clear boxes & redraw** makes correction quick: draw only actual bobbers, excluding reflections, and Save. A reflection label teaches the detector the wrong object. Correcting validation/test labels invalidates the old evidence; train a fresh baseline from corrected original recordings, evaluate, then explicitly approve only a passing candidate. The latest audit is `data/audits/latest-label-audit.json`.
+
+Startup now opens Model results when the selected model is unapproved. A failed approval is different from a missing, still-training or changed checkpoint; those errors now give specific recovery instructions. Current model files were checked against their recorded hashes without altering their evidence.

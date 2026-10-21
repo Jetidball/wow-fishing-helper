@@ -70,6 +70,8 @@ class LabeledTemplate:
         self.profile=profile
         self.inner=TemplateDetector(templates,profile.data["confidence"],profile.data["model"].get("canny_thresholds",(100,200)))
         self.artifact_sha256=hashlib.sha256(b"".join(t.tobytes()+str(t.shape).encode() for t in templates)).hexdigest()
+    def detections(self,frame):
+        return [replace(found,label=self.profile.data["target_class"]) for found in self.inner.detections(frame)]
     def detect(self,frame):
         # The candidate API retains the old detector interface while allowing abstention.
         boxes=self.inner.candidates(frame)

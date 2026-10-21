@@ -139,6 +139,22 @@ class WorkflowTests(unittest.TestCase):
         self.updates=[{"frame_id":r["id"],"boxes":[{"class_id":i,"space":"frame_pixels","x":4+i*25,"y":4,"width":20,"height":20} for i in (0,1)]} for r in ds.load(self.raw)["frames"]]
         label(self.p,self.raw,self.updates,"reviewer")
         ds.export_yolo(self.raw,self.export)
+    def test_all_detections_are_scored_even_when_click_policy_would_abstain(self):
+        for update in self.updates:
+            update['boxes'].append({'class_id':0,'space':'frame_pixels','x':50,'y':4,'width':15,'height':20})
+        label(self.p,self.raw,self.updates,'reviewer')
+        self.export=self.root/'export-multiple';ds.export_yolo(self.raw,self.export)
+        out,best,_=self.train()
+        class Backend:
+            def detections(inner,frame):
+                return [Detection(frame.sequence,frame.captured_at,frame.captured_at+.001,Box(x,4,w,20),Point(x+w//2,14),.99,'confirm_button') for x,w in ((4,20),(50,15))]
+            def detect(inner,frame):raise AssertionError('Single-target policy must not measure all-object recall')
+        report=evaluate_task(self.p,self.export,self.root/'eval-multiple',weights=best,training_run=out,detector=Backend())
+        metrics=report['backends']['selected']
+        self.assertEqual(metrics['recall'],1);self.assertEqual(metrics['precision'],1)
+        self.assertEqual(metrics['selection_policy']['ambiguous_frames'],metrics['frames'])
+        self.assertEqual(report['detection_metrics_version'],2)
+
     def test_generic_classes_export_and_human_review_required(self):
         data=ds.validate(self.export);self.assertEqual(data["classes"],["confirm_button","status_mark"])
         row=data["frames"][0];text=(self.export/"labels"/row["split"]/(row["id"]+".txt")).read_text()

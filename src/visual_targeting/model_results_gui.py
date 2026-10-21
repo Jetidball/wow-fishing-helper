@@ -22,6 +22,7 @@ class ModelResultsPanel(ttk.Frame):
         actions=ttk.LabelFrame(self,text='Select a model below, then choose your next step',padding=5)
         actions.pack(fill='x',pady=4)
         choices=[
+          ('audit','Review suspicious labels','Find vertically aligned bobber boxes that may be water reflections. Opens original human labels for review; never changes them automatically. Corrected test labels require a fresh baseline/evaluation.'),
           ('errors','Open error history','Open persistent JSONL errors with timestamps, action, settings context and traceback. Includes blocked live setup and worker failures.'),
           ('teach','Teach missed bobbers while running','Run the selected model. After a sustained missed search, pause on the frozen frame and ask you to draw correct boxes. Five saved corrections start background GPU refinement/evaluation. Current weights remain loaded.'),
           ('teach_train','Train now in background','Train from your saved human corrections without stopping teaching preview. New weights are evaluated, never auto-promoted.'),
@@ -113,6 +114,9 @@ class ModelResultsPanel(ttk.Frame):
                    f"Last validation epoch {val.get('epoch','—')}: correct {percent(val.get('precision'))}, found {percent(val.get('recall'))}. Validation can overestimate unseen-session performance."]
             if report:
                 small=metrics.get('small_targets',{});miss=small.get('miss_rate')
+                lines.append('Measurement: '+('all detections (corrected v2)' if report.get('detection_metrics_version',1)>=2 else 'legacy single-target policy; re-evaluate for detector accuracy'))
+                policy=metrics.get('selection_policy',{})
+                if policy:lines.append(f"Click-policy ambiguous frames: {policy['ambiguous_frames']}; missing frames: {policy['missing_frames']}. Multiple detections are not counted as detector misses.")
                 lines.extend([f"Small-bobber miss rate: {percent(miss)} (lower is better; sample count {small.get('count','—')}).",
                               f"False detections per cast: {metrics.get('false_detections_per_cast',{}).get('mean','—')} (count, not a percent; lower is better).",
                               f"Click-point error p95: {metrics.get('click_point_error',{}).get('p95_px','—')} pixels (lower is better; prediction-to-label proxy).",

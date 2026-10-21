@@ -621,7 +621,9 @@ class App():
       except Exception as exc:
         from visual_targeting.errors import record_error
         record_error("live_start_model",exc,{"profile":self.s.neural_profile,"weights":self.s.neural_weights})
-        messagebox.showerror("Neural model not ready",str(exc)+"\nUse Visual targeting for candidate preview/movement tests. Review evaluation before approving automatic fishing.",parent=self.root)
+        self.model_results.refresh();self.pages.select(self.model_results)
+        self.status.set("Live fishing blocked: "+str(exc)+". Select your model in Model results and review its evaluation.")
+        messagebox.showerror("Neural model not ready",str(exc)+"\n\nModel results is now open. Select the model, Evaluate selected, then Review / approve selected if its results pass. Teaching preview remains available while improving it.",parent=self.root)
         return
     from visual_targeting.input import desktop, WindowsInput, DryRunInput
     desktop.configure(WindowsInput() if self.live_controls.get() else DryRunInput())

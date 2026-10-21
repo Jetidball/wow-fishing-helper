@@ -138,6 +138,7 @@ def describe(widget,name,default=None,on_focus=None):
 
 
 BUTTON_HELP={
+'Clear boxes & redraw':'Clear only the unsaved boxes on this picture so you can redraw correct labels. Saved labels change only when Save is pressed.',
 'Start fishing':'Save the setup and start the fishing loop. Game input is sent only if Enable live game controls is checked. F9 pauses; Esc stops.',
 'Save':'Save your current settings for the next launch without starting fishing.',
 'Cancel':'Close this dialog without accepting its current selection. Existing saved settings are kept.',

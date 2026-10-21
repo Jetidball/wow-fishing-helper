@@ -75,7 +75,7 @@ def model_results(root):
                 if key in approved:verdict='Approved' if key not in active else 'Active — approved'
             comparison=None
             if match:
-                comparison=hashlib.sha256(json.dumps([sorted(match['frame_ids']),match.get('test_truth_sha256',match['human_review_sha256'])]).encode()).hexdigest()[:12]
+                comparison=hashlib.sha256(json.dumps([sorted(match['frame_ids']),match.get('test_truth_sha256',match['human_review_sha256']),match.get('detection_metrics_version',1)]).encode()).hexdigest()[:12]
             weights=Path(run.get('checkpoint',path.parent/'fit/weights/best.pt'))
             rows.append({
                 'name':path.parent.name,'run_dir':path.parent,'run':run,

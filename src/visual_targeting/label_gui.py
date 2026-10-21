@@ -14,12 +14,13 @@ def annotation_box(start,end,scale,width,height,class_id):
     if x1==x2 or y1==y2:raise ValueError('Drag a box with positive width and height')
     return dict(class_id=class_id,space='frame_pixels',x=x1,y=y1,width=x2-x1,height=y2-y1)
 
-def open_labeler(parent,profile,dataset,reviewer,on_change=None):
+def open_labeler(parent,profile,dataset,reviewer,on_change=None,frame_ids=None):
     import cv2 as cv
     from .review_store import ReviewStore
     if not reviewer.strip():raise ValueError('Enter your name as the reviewer')
     store=ReviewStore(profile,dataset);data=store.data
-    rows=sorted(data['frames'],key=lambda r:(r['annotation']['reviewed'],r['session_id'],r['cast_id'],r['sequence']))
+    candidates=data['frames'] if frame_ids is None else [r for r in data['frames'] if r['id'] in frame_ids]
+    rows=sorted(candidates,key=lambda r:(r['annotation']['reviewed'],r['session_id'],r['cast_id'],r['sequence']))
     if not rows:raise ValueError('Record some frames first')
     top=tk.Toplevel(parent);top.title('Label training pictures — human review')
     title=tk.StringVar();message=tk.StringVar();chosen=tk.StringVar(value=profile.data['target_class'])
@@ -85,9 +86,11 @@ def open_labeler(parent,profile,dataset,reviewer,on_change=None):
     def undo():
         if state['boxes']:state['boxes'].pop()
         redraw()
+    def clear_boxes():
+        state['boxes'].clear();redraw()
     canvas.bind('<ButtonPress-1>',begin);canvas.bind('<B1-Motion>',drag);canvas.bind('<ButtonRelease-1>',end)
     buttons=ttk.Frame(top);buttons.pack()
-    for i,(text,fn) in enumerate([('Save boxes → next',save),('Explicit negative → next',lambda:save(True)),('Skip (unreviewed)',advance),('Previous',lambda:advance(-1)),('Undo box',undo),('Close',top.destroy)]):
+    for i,(text,fn) in enumerate([('Save boxes → next',save),('Explicit negative → next',lambda:save(True)),('Skip (unreviewed)',advance),('Previous',lambda:advance(-1)),('Undo box',undo),('Clear boxes & redraw',clear_boxes),('Close',top.destroy)]):
         ttk.Button(buttons,text=text,command=fn).grid(row=i//3,column=i%3,padx=4,pady=5)
     top.bind('<KeyRelease-Return>',lambda event:save())
     top.bind('<KeyRelease-n>',lambda event:save(True))

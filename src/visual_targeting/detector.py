@@ -53,7 +53,7 @@ class TemplateDetector:
         return Detection(frame.sequence, frame.captured_at, self.clock(), Box(**match["box"]),
                          Point(*match["center"]), match["value"])
 
-    def candidates(self, frame, limit=32):
+    def _matches(self, frame, limit=32):
         """Multiple distinct screen boxes for ambiguity-aware tracking (NMS across templates)."""
         gray=frame.pixels if frame.format=="gray" else cv.cvtColor(frame.pixels,cv.COLOR_BGRA2GRAY if frame.format=="bgra" else cv.COLOR_BGR2GRAY)
         edges=cv.Canny(gray,*self.canny_thresholds)
@@ -70,10 +70,17 @@ class TemplateDetector:
         kept=[]
         for score,b in sorted(proposals,key=lambda p:-p[0]):
             duplicate=False
-            for a in kept:
+            for _,a in kept:
                 overlap=max(0,min(a[2],b[2])-max(a[0],b[0]))*max(0,min(a[3],b[3])-max(a[1],b[1]))
                 union=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-overlap
                 if overlap/union>.3:duplicate=True;break
-            if not duplicate:kept.append(b)
+            if not duplicate:kept.append((score,b))
             if len(kept)>=limit:break
-        return [[x1+frame.bounds.left,y1+frame.bounds.top,x2+frame.bounds.left,y2+frame.bounds.top] for x1,y1,x2,y2 in kept]
+        return [(score,[x1+frame.bounds.left,y1+frame.bounds.top,x2+frame.bounds.left,y2+frame.bounds.top]) for score,(x1,y1,x2,y2) in kept]
+
+    def candidates(self,frame,limit=32):
+        return [box for _,box in self._matches(frame,limit)]
+
+    def detections(self,frame,limit=32):
+        return [Detection(frame.sequence,frame.captured_at,self.clock(),Box(x1,y1,x2-x1,y2-y1),Point((x1+x2)//2,(y1+y2)//2),score)
+                for score,(x1,y1,x2,y2) in self._matches(frame,limit)]
